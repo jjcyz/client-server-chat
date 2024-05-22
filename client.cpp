@@ -17,7 +17,14 @@ void receive_messages(int client_socket) {
             break;
         } else {
             buffer[bytes_received] = '\0';
-            std::cout << buffer << std::endl;
+            std::string message(buffer);
+
+            // Optional: handle command responses differently
+            if (message.find("Active users:") == 0) {
+                std::cout << "\n[Server Response]\n" << message << std::endl;
+            } else {
+                std::cout << message << std::endl;
+            }
         }
     }
 }

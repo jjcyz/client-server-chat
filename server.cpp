@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <algorithm>
+#include <ctime>
 
 #define PORT 5555
 #define BUFFER_SIZE 1024
@@ -13,9 +14,14 @@
 std::vector<std::pair<int, std::string> > clients;
 
 void broadcast(int sender, const std::string& message) {
+    std::time_t now = std::time(nullptr);
+    char time_buffer[20];
+    std::strftime(time_buffer, sizeof(time_buffer), "[%H:%M:%S] ", std::localtime(&now));
+
+    std::string timed_message = time_buffer + message;
     for (auto& client : clients) {
         if (client.first != sender) {
-            send(client.first, message.c_str(), strlen(message.c_str()), 0);
+            send(client.first, timed_message.c_str(), timed_message.length(), 0);
         }
     }
 }
@@ -28,6 +34,19 @@ void send_join_message(const std::string& username) {
 void send_leave_message(const std::string& username) {
     std::string leave_message = username + " has left the chat";
     broadcast(-1, leave_message);
+}
+
+void handle_command(int client_socket, const std::string& command) {
+    if (command == "/list") {
+        std::string user_list = "Active users:\n";
+        for (const auto& client : clients) {
+            user_list += client.second + "\n";
+        }
+        send(client_socket, user_list.c_str(), user_list.length(), 0);
+    } else {
+        std::string unknown_command = "Unknown command.\n";
+        send(client_socket, unknown_command.c_str(), unknown_command.length(), 0);
+    }
 }
 
 void handle_client(int client_socket) {
@@ -49,7 +68,7 @@ void handle_client(int client_socket) {
         if (bytes_received <= 0) {
             // Remove disconnected client
             auto it = std::find_if(clients.begin(), clients.end(),
-                                    [&](const std::pair<int, std::string>& client){ return client.first == client_socket; });
+                                   [&](const std::pair<int, std::string>& client){ return client.first == client_socket; });
             if (it != clients.end()) {
                 send_leave_message(it->second);
                 clients.erase(it);
@@ -58,8 +77,13 @@ void handle_client(int client_socket) {
             break;
         } else {
             buffer[bytes_received] = '\0';
-            std::cout << "Received: " << buffer << std::endl;
-            broadcast(client_socket, username + ": " + buffer);
+            std::string message(buffer);
+
+            if (message[0] == '/') {
+                handle_command(client_socket, message);
+            } else {
+                broadcast(client_socket, username + ": " + message);
+            }
         }
     }
 }
