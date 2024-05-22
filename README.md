@@ -21,7 +21,7 @@ This repository contains a simple chat application implemented in C++ using sock
 1. Clone the repository:
    ```sh
 	git clone https://github.com/jjczy/Chat.git
-	cd chat-application
+	cd Chat
 2. Compile the server and client programs:
    ```sh
 	 g++ -std=c++11 -o server server.cpp
