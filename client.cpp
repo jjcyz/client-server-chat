@@ -47,7 +47,6 @@ int main() {
 
     std::thread(receive_messages, client_socket).detach();
 
-
     while (true) {
         std::string message;
         std::getline(std::cin, message);
@@ -60,7 +59,4 @@ int main() {
     close(client_socket);
     return 0;
 }
-
-
-
 

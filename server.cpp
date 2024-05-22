@@ -12,12 +12,22 @@
 
 std::vector<std::pair<int, std::string> > clients;
 
-void broadcast(int sender, const std::string& username, const char* message) {
+void broadcast(int sender, const std::string& message) {
     for (auto& client : clients) {
         if (client.first != sender) {
-            send(client.first, (username + ": " + message).c_str(), strlen(username.c_str()) + strlen(message) + 2, 0);
+            send(client.first, message.c_str(), strlen(message.c_str()), 0);
         }
     }
+}
+
+void send_join_message(const std::string& username) {
+    std::string join_message = username + " has joined the chat";
+    broadcast(-1, join_message);
+}
+
+void send_leave_message(const std::string& username) {
+    std::string leave_message = username + " has left the chat";
+    broadcast(-1, leave_message);
 }
 
 void handle_client(int client_socket) {
@@ -31,20 +41,25 @@ void handle_client(int client_socket) {
     std::string username(username_buffer);
 
     clients.push_back(std::make_pair(client_socket, username));
+    send_join_message(username);
 
     while (true) {
         char buffer[BUFFER_SIZE];
         int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (bytes_received <= 0) {
             // Remove disconnected client
-            clients.erase(std::remove_if(clients.begin(), clients.end(),
-                                          [&](const std::pair<int, std::string>& client){ return client.first == client_socket; }), clients.end());
+            auto it = std::find_if(clients.begin(), clients.end(),
+                                    [&](const std::pair<int, std::string>& client){ return client.first == client_socket; });
+            if (it != clients.end()) {
+                send_leave_message(it->second);
+                clients.erase(it);
+            }
             close(client_socket);
             break;
         } else {
             buffer[bytes_received] = '\0';
             std::cout << "Received: " << buffer << std::endl;
-            broadcast(client_socket, username, buffer);
+            broadcast(client_socket, username + ": " + buffer);
         }
     }
 }
@@ -89,16 +104,3 @@ int main() {
     close(server_socket);
     return 0;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
