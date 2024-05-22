@@ -37,7 +37,23 @@ void send_leave_message(const std::string& username) {
 }
 
 void handle_command(int client_socket, const std::string& command) {
-    if (command == "/list") {
+    if (command.substr(0, 5) == "/msg ") {
+        size_t pos = command.find(' ', 5);
+        if (pos != std::string::npos) {
+            std::string recipient = command.substr(5, pos - 5);
+            std::string private_message = command.substr(pos + 1);
+
+            auto it = std::find_if(clients.begin(), clients.end(),
+                                   [&](const std::pair<int, std::string>& client) { return client.second == recipient; });
+            if (it != clients.end()) {
+                send(it->first, ("(private) " + private_message).c_str(), ("(private) " + private_message).length(), 0);
+            } else {
+                send(client_socket, "User not found.\n", 15, 0);
+            }
+        } else {
+            send(client_socket, "Invalid command format.\n", 24, 0);
+        }
+    } else if (command == "/list") {
         std::string user_list = "Active users:\n";
         for (const auto& client : clients) {
             user_list += client.second + "\n";
