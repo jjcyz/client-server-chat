@@ -57,7 +57,7 @@ The client supports the following commands:
 - **Main function**: Connects to the server, handles user input, and sends messages.
 - **`receive_messages` function**: Runs in a separate thread to continuously receive messages from the server and display them to the user.
 
-### What's Next
+## What's Next
 - **Error Handling**:
 Error Messages: Provide informative error messages to users in case of failures or unexpected scenarios. Clearly communicate the nature of the error and any steps the user can take to resolve it. Log detailed error messages on the server side for debugging purposes. Exception Handling: Use exception handling mechanisms (try-catch blocks in C++) to gracefully handle runtime errors and exceptional conditions. Catch and handle exceptions at appropriate levels of abstraction to prevent crashes and maintain application stability.
 - **User Interface (UI) Enhancement**:
