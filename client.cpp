@@ -19,8 +19,9 @@ void receive_messages(int client_socket) {
             buffer[bytes_received] = '\0';
             std::string message(buffer);
 
-            // Optional: handle command responses differently
-            if (message.find("Active users:") == 0) {
+            if (message.find("[Chat History]") == 0) {
+                std::cout << message << std::endl;
+            } else if (message.find("Active users:") == 0) {
                 std::cout << "\n[Server Response]\n" << message << std::endl;
             } else {
                 std::cout << message << std::endl;

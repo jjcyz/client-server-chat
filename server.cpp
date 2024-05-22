@@ -7,11 +7,14 @@
 #include <sys/socket.h>
 #include <algorithm>
 #include <ctime>
+#include <mutex>
 
 #define PORT 5555
 #define BUFFER_SIZE 1024
 
 std::vector<std::pair<int, std::string> > clients;
+std::vector<std::string> chat_history;
+std::mutex mtx;
 
 void broadcast(int sender, const std::string& message) {
     std::time_t now = std::time(nullptr);
@@ -19,6 +22,13 @@ void broadcast(int sender, const std::string& message) {
     std::strftime(time_buffer, sizeof(time_buffer), "[%H:%M:%S] ", std::localtime(&now));
 
     std::string timed_message = time_buffer + message;
+
+    // Store the message in chat history
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        chat_history.push_back(timed_message);  // Store message in history
+    }
+
     for (auto& client : clients) {
         if (client.first != sender) {
             send(client.first, timed_message.c_str(), timed_message.length(), 0);
@@ -59,6 +69,14 @@ void handle_command(int client_socket, const std::string& command) {
             user_list += client.second + "\n";
         }
         send(client_socket, user_list.c_str(), user_list.length(), 0);
+    } else if (command == "/history") {
+        std::lock_guard<std::mutex> lock(mtx); // Ensure thread-safe access to chat_history
+        std::string history = "[Chat History]";
+        send(client_socket, history.c_str(), history.length(), 0);
+        for (const auto &msg : chat_history) {
+            std::string msg_with_newline = msg + "\n";
+            send(client_socket, msg_with_newline.c_str(), msg_with_newline.length(), 0);
+        }
     } else {
         std::string unknown_command = "Unknown command.\n";
         send(client_socket, unknown_command.c_str(), unknown_command.length(), 0);
@@ -75,7 +93,10 @@ void handle_client(int client_socket) {
     username_buffer[bytes_received_username] = '\0';
     std::string username(username_buffer);
 
-    clients.push_back(std::make_pair(client_socket, username));
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        clients.push_back(std::make_pair(client_socket, username));
+    }
     send_join_message(username);
 
     while (true) {
