@@ -1,4 +1,4 @@
-# Chat Application
+# Client-Server Chat Application
 
 This repository contains a simple chat application implemented in C++ using sockets for communication between a server and multiple clients. The application supports basic functionalities such as broadcasting messages, listing active users, viewing chat history, and sending private messages.
 
