@@ -8,11 +8,50 @@
 #include <algorithm>
 #include <ctime>
 #include <mutex>
+#include <chrono> // for time
+#include <atomic> // for atomic variables (performace gains)
+#include <map> // for message types
 
 #define PORT 5555
 #define BUFFER_SIZE 1024
 
-std::vector<std::pair<int, std::string> > clients;
+// Performance metrics
+struct ServerMetrics {
+    std::atomic<size_t> total_messages_processed{0};
+    std::atomic<size_t> current_connections{0};
+    std::atomic<size_t> peak_connections{0};
+    std::atomic<size_t> total_bytes_transferred{0};
+    std::chrono::steady_clock::time_point start_time;
+    std::map<std::string, size_t> message_types;
+
+    ServerMetrics() : start_time(std::chrono::steady_clock::now()) {}
+
+    void record_message(const std::string& type) {
+        total_messages_processed++;
+        message_types[type]++;
+    }
+
+    void record_bytes(size_t bytes) {
+        total_bytes_transferred += bytes;
+    }
+
+    void update_connections(size_t count) {
+        current_connections = count;
+        peak_connections = std::max(peak_connections.load(), count);
+    }
+
+    double get_uptime_seconds() const {
+        auto now = std::chrono::steady_clock::now();
+        return std::chrono::duration<double>(now - start_time).count();
+    }
+
+    double get_messages_per_second() const {
+        return total_messages_processed.load() / get_uptime_seconds();
+    }
+};
+
+ServerMetrics metrics;
+std::vector<std::pair<int, std::string>> clients;
 std::vector<std::string> chat_history;
 std::mutex mtx;
 
@@ -23,10 +62,13 @@ void broadcast(int sender, const std::string& message) {
 
     std::string timed_message = time_buffer + message;
 
-    // Store the message in chat history
+    // Record metrics
+    metrics.record_message("broadcast");
+    metrics.record_bytes(timed_message.length() * (clients.size() - 1));
+
     {
         std::lock_guard<std::mutex> lock(mtx);
-        chat_history.push_back(timed_message);  // Store message in history
+        chat_history.push_back(timed_message);
     }
 
     for (auto& client : clients) {
@@ -48,6 +90,7 @@ void send_leave_message(const std::string& username) {
 
 void handle_command(int client_socket, const std::string& command) {
     if (command.substr(0, 5) == "/msg ") {
+        metrics.record_message("private");
         size_t pos = command.find(' ', 5);
         if (pos != std::string::npos) {
             std::string recipient = command.substr(5, pos - 5);
@@ -64,12 +107,14 @@ void handle_command(int client_socket, const std::string& command) {
             send(client_socket, "Invalid command format.\n", 24, 0);
         }
     } else if (command == "/list") {
+        metrics.record_message("list_users");
         std::string user_list = "Active users:\n";
         for (const auto& client : clients) {
             user_list += client.second + "\n";
         }
         send(client_socket, user_list.c_str(), user_list.length(), 0);
     } else if (command == "/history") {
+        metrics.record_message("history");
         std::lock_guard<std::mutex> lock(mtx); // Ensure thread-safe access to chat_history
         std::string history = "[Chat History]";
         send(client_socket, history.c_str(), history.length(), 0);
@@ -77,7 +122,21 @@ void handle_command(int client_socket, const std::string& command) {
             std::string msg_with_newline = msg + "\n";
             send(client_socket, msg_with_newline.c_str(), msg_with_newline.length(), 0);
         }
+    } else if (command == "/stats") {
+        std::string stats = "Server Statistics:\n";
+        stats += "Uptime: " + std::to_string(metrics.get_uptime_seconds()) + " seconds\n";
+        stats += "Total Messages: " + std::to_string(metrics.total_messages_processed.load()) + "\n";
+        stats += "Messages/Second: " + std::to_string(metrics.get_messages_per_second()) + "\n";
+        stats += "Current Connections: " + std::to_string(metrics.current_connections.load()) + "\n";
+        stats += "Peak Connections: " + std::to_string(metrics.peak_connections.load()) + "\n";
+        stats += "Total Data Transferred: " + std::to_string(metrics.total_bytes_transferred.load()) + " bytes\n";
+        stats += "Message Types:\n";
+        for (const auto& type : metrics.message_types) {
+            stats += "  " + type.first + ": " + std::to_string(type.second) + "\n";
+        }
+        send(client_socket, stats.c_str(), stats.length(), 0);
     } else {
+        metrics.record_message("unknown_command");
         std::string unknown_command = "Unknown command.\n";
         send(client_socket, unknown_command.c_str(), unknown_command.length(), 0);
     }
@@ -96,6 +155,7 @@ void handle_client(int client_socket) {
     {
         std::lock_guard<std::mutex> lock(mtx);
         clients.push_back(std::make_pair(client_socket, username));
+        metrics.update_connections(clients.size());
     }
     send_join_message(username);
 
@@ -122,6 +182,12 @@ void handle_client(int client_socket) {
                 broadcast(client_socket, username + ": " + message);
             }
         }
+    }
+
+    // Update metrics when client disconnects
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        metrics.update_connections(clients.size());
     }
 }
 
