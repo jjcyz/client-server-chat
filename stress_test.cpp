@@ -27,13 +27,19 @@ std::atomic<int> failed_connections{0};
 std::atomic<int> total_messages_sent{0};
 std::vector<double> latencies;
 std::mutex latencies_mutex;
+std::mutex console_mutex;  // Add this for console output synchronization
+
+void log_message(const std::string& message) {
+    std::lock_guard<std::mutex> lock(console_mutex);
+    std::cout << message << std::endl;
+}
 
 void client_thread(int client_id) {
     int retries = 0;
     while (retries < MAX_RETRIES) {
         int client_socket = socket(AF_INET, SOCK_STREAM, 0);
         if (client_socket == -1) {
-            std::cerr << "Client " << client_id << " failed to create socket: " << strerror(errno) << std::endl;
+            log_message("Client " + std::to_string(client_id) + " failed to create socket: " + std::string(strerror(errno)));
             failed_connections++;
             return;
         }
@@ -42,15 +48,17 @@ void client_thread(int client_id) {
         server_address.sin_family = AF_INET;
         server_address.sin_port = htons(PORT);
         if (inet_pton(AF_INET, SERVER_IP, &server_address.sin_addr) <= 0) {
-            std::cerr << "Client " << client_id << " invalid address: " << strerror(errno) << std::endl;
+            log_message("Client " + std::to_string(client_id) + " invalid address: " + std::string(strerror(errno)));
             failed_connections++;
             close(client_socket);
             return;
         }
 
-        std::cout << "Client " << client_id << " attempting to connect (attempt " << retries + 1 << "/" << MAX_RETRIES << ")..." << std::endl;
+        log_message("Client " + std::to_string(client_id) + " attempting to connect (attempt " +
+                  std::to_string(retries + 1) + "/" + std::to_string(MAX_RETRIES) + ")...");
+
         if (connect(client_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
-            std::cerr << "Client " << client_id << " failed to connect: " << strerror(errno) << std::endl;
+            log_message("Client " + std::to_string(client_id) + " failed to connect: " + std::string(strerror(errno)));
             close(client_socket);
             retries++;
             if (retries < MAX_RETRIES) {
@@ -61,7 +69,7 @@ void client_thread(int client_id) {
             return;
         }
 
-        std::cout << "Client " << client_id << " connected successfully" << std::endl;
+        log_message("Client " + std::to_string(client_id) + " connected successfully");
         successful_connections++;
 
         // Set socket timeout
@@ -74,7 +82,7 @@ void client_thread(int client_id) {
         // Send username
         std::string username = "stress_test_" + std::to_string(client_id);
         if (send(client_socket, username.c_str(), username.length(), 0) <= 0) {
-            std::cerr << "Client " << client_id << " failed to send username: " << strerror(errno) << std::endl;
+            log_message("Client " + std::to_string(client_id) + " failed to send username: " + std::string(strerror(errno)));
             close(client_socket);
             continue;
         }
@@ -86,7 +94,8 @@ void client_thread(int client_id) {
 
             std::string message = "Message " + std::to_string(i) + " from client " + std::to_string(client_id);
             if (send(client_socket, message.c_str(), message.length(), 0) <= 0) {
-                std::cerr << "Client " << client_id << " failed to send message " << i << ": " << strerror(errno) << std::endl;
+                log_message("Client " + std::to_string(client_id) + " failed to send message " + std::to_string(i) +
+                          ": " + std::string(strerror(errno)));
                 connection_error = true;
                 break;
             }
@@ -94,7 +103,8 @@ void client_thread(int client_id) {
             // Wait for response
             char buffer[1024];
             if (recv(client_socket, buffer, sizeof(buffer), 0) <= 0) {
-                std::cerr << "Client " << client_id << " failed to receive response for message " << i << ": " << strerror(errno) << std::endl;
+                log_message("Client " + std::to_string(client_id) + " failed to receive response for message " +
+                          std::to_string(i) + ": " + std::string(strerror(errno)));
                 connection_error = true;
                 break;
             }
@@ -124,12 +134,12 @@ void client_thread(int client_id) {
 }
 
 int main() {
-    std::cout << "Starting stress test with " << NUM_CLIENTS << " clients..." << std::endl;
-    std::cout << "Maximum concurrent threads: " << MAX_CONCURRENT_THREADS << std::endl;
-    std::cout << "Messages per client: " << MESSAGES_PER_CLIENT << std::endl;
-    std::cout << "Message interval: " << MESSAGE_INTERVAL_MS << "ms" << std::endl;
-    std::cout << "Connection batch size: " << CONNECTION_BATCH_SIZE << std::endl;
-    std::cout << "Batch delay: " << BATCH_DELAY_MS << "ms" << std::endl;
+    log_message("Starting stress test with " + std::to_string(NUM_CLIENTS) + " clients...");
+    log_message("Maximum concurrent threads: " + std::to_string(MAX_CONCURRENT_THREADS));
+    log_message("Messages per client: " + std::to_string(MESSAGES_PER_CLIENT));
+    log_message("Message interval: " + std::to_string(MESSAGE_INTERVAL_MS) + "ms");
+    log_message("Connection batch size: " + std::to_string(CONNECTION_BATCH_SIZE));
+    log_message("Batch delay: " + std::to_string(BATCH_DELAY_MS) + "ms");
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -188,19 +198,19 @@ int main() {
         }
     }
 
-    std::cout << "\nStress Test Results:" << std::endl;
-    std::cout << "-------------------" << std::endl;
-    std::cout << "Total Time: " << total_time << " seconds" << std::endl;
-    std::cout << "Successful Connections: " << successful_connections << " ("
-              << (static_cast<double>(successful_connections) / NUM_CLIENTS * 100) << "%)" << std::endl;
-    std::cout << "Failed Connections: " << failed_connections << " ("
-              << (static_cast<double>(failed_connections) / NUM_CLIENTS * 100) << "%)" << std::endl;
-    std::cout << "Total Messages Sent: " << total_messages_sent << std::endl;
-    std::cout << "Messages/Second: " << total_messages_sent / total_time << std::endl;
-    std::cout << "Average Latency: " << avg_latency << " ms" << std::endl;
-    std::cout << "Min Latency: " << min_latency << " ms" << std::endl;
-    std::cout << "Max Latency: " << max_latency << " ms" << std::endl;
-    std::cout << "Total Latency Samples: " << latencies.size() << std::endl;
+    log_message("\nStress Test Results:");
+    log_message("-------------------");
+    log_message("Total Time: " + std::to_string(total_time) + " seconds");
+    log_message("Successful Connections: " + std::to_string(successful_connections) + " (" +
+               std::to_string(static_cast<double>(successful_connections) / NUM_CLIENTS * 100) + "%)");
+    log_message("Failed Connections: " + std::to_string(failed_connections) + " (" +
+               std::to_string(static_cast<double>(failed_connections) / NUM_CLIENTS * 100) + "%)");
+    log_message("Total Messages Sent: " + std::to_string(total_messages_sent));
+    log_message("Messages/Second: " + std::to_string(total_messages_sent / total_time));
+    log_message("Average Latency: " + std::to_string(avg_latency) + " ms");
+    log_message("Min Latency: " + std::to_string(min_latency) + " ms");
+    log_message("Max Latency: " + std::to_string(max_latency) + " ms");
+    log_message("Total Latency Samples: " + std::to_string(latencies.size()));
 
     return 0;
 }
