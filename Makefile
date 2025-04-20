@@ -1,16 +1,20 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -pthread -I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1
-TARGETS = server stress_test
+CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1
+LDFLAGS = -pthread
 
-all: $(TARGETS)
-
-server: server.cpp
-	$(CXX) $(CXXFLAGS) server.cpp -o server
-
-stress_test: stress_test.cpp
-	$(CXX) $(CXXFLAGS) stress_test.cpp -o stress_test
-
-clean:
-	rm -f $(TARGETS)
+SRCS = main.cpp network_handler.cpp connection_pool.cpp message_queue.cpp server_metrics.cpp command_processor.cpp
+OBJS = $(SRCS:.cpp=.o)
+TARGET = server
 
 .PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): $(OBJS)
+	$(CXX) $(LDFLAGS) -o $@ $^
+
+%.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+clean:
+	rm -f $(OBJS) $(TARGET)
