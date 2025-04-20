@@ -27,7 +27,7 @@ std::atomic<int> failed_connections{0};
 std::atomic<int> total_messages_sent{0};
 std::vector<double> latencies;
 std::mutex latencies_mutex;
-std::mutex console_mutex;  // Add this for console output synchronization
+std::mutex console_mutex;
 
 void log_message(const std::string& message) {
     std::lock_guard<std::mutex> lock(console_mutex);
@@ -58,7 +58,7 @@ void client_thread(int client_id) {
                   std::to_string(retries + 1) + "/" + std::to_string(MAX_RETRIES) + ")...");
 
         if (connect(client_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
-            log_message("Client " + std::to_string(client_id) + " failed to connect: " + std::string(strerror(errno)));
+            log_message("Client " + std::to_string(client_id) + " failed to connect: " + std::string(strerror(errno)) + "\n");
             close(client_socket);
             retries++;
             if (retries < MAX_RETRIES) {
@@ -82,7 +82,7 @@ void client_thread(int client_id) {
         // Send username
         std::string username = "stress_test_" + std::to_string(client_id);
         if (send(client_socket, username.c_str(), username.length(), 0) <= 0) {
-            log_message("Client " + std::to_string(client_id) + " failed to send username: " + std::string(strerror(errno)));
+            log_message("Client " + std::to_string(client_id) + " failed to send username: " + std::string(strerror(errno)) + "\n");
             close(client_socket);
             continue;
         }
@@ -95,7 +95,7 @@ void client_thread(int client_id) {
             std::string message = "Message " + std::to_string(i) + " from client " + std::to_string(client_id);
             if (send(client_socket, message.c_str(), message.length(), 0) <= 0) {
                 log_message("Client " + std::to_string(client_id) + " failed to send message " + std::to_string(i) +
-                          ": " + std::string(strerror(errno)));
+                          ": " + std::string(strerror(errno)) + "\n");
                 connection_error = true;
                 break;
             }
@@ -104,7 +104,7 @@ void client_thread(int client_id) {
             char buffer[1024];
             if (recv(client_socket, buffer, sizeof(buffer), 0) <= 0) {
                 log_message("Client " + std::to_string(client_id) + " failed to receive response for message " +
-                          std::to_string(i) + ": " + std::string(strerror(errno)));
+                          std::to_string(i) + ": " + std::string(strerror(errno)) + "\n");
                 connection_error = true;
                 break;
             }

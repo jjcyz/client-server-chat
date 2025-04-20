@@ -24,12 +24,12 @@
 #define CONNECTION_TIMEOUT 30
 #define MAX_RETRY_ATTEMPTS 5
 #define MAX_HISTORY_SIZE 100
+#define MAX_LATENCY_SAMPLES 1000
 
 // Message structure for the queue
 struct Message {
     int sender_socket;
     std::string content;
-    std::chrono::steady_clock::time_point timestamp;
 };
 
 // Forward declarations
@@ -98,6 +98,9 @@ struct ServerMetrics {
         total_messages_processed++;
         message_types[type]++;
         if (latency > 0) {
+            if (message_latencies.size() >= MAX_LATENCY_SAMPLES) {
+                message_latencies.erase(message_latencies.begin());
+            }
             message_latencies.push_back(latency);
         }
     }
@@ -257,9 +260,7 @@ void broadcast(int sender, const std::string& message) {
                         break;
                     } else {
                         log_message("Failed to broadcast to client " + conn.username + ": " + std::string(strerror(errno)));
-                        if (errno != EINTR && errno != EINPROGRESS) {
-                            release_connection(&conn);
-                        }
+                        release_connection(&conn);
                         break;
                     }
                 }
@@ -362,37 +363,26 @@ void handle_client(int client_socket) {
             log_message("Error: Could not set send buffer size for client: " + std::string(strerror(errno)));
         }
 
-        // Set socket timeout
-        struct timeval tv;
-        tv.tv_sec = CONNECTION_TIMEOUT;
-        tv.tv_usec = 0;
-        if (setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
-            log_message("Error: Could not set receive timeout for client: " + std::string(strerror(errno)));
-        }
-        if (setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0) {
-            log_message("Error: Could not set send timeout for client: " + std::string(strerror(errno)));
-        }
-
         conn->socket = client_socket;
         metrics.update_connections(metrics.current_connections.load() + 1);
         log_message("New connection accepted. Current connections: " + std::to_string(metrics.current_connections.load()));
 
-        char username_buffer[BUFFER_SIZE];
-        int bytes_received_username = recv(client_socket, username_buffer, BUFFER_SIZE, 0);
-        if (bytes_received_username <= 0) {
+    char username_buffer[BUFFER_SIZE];
+    int bytes_received_username = recv(client_socket, username_buffer, BUFFER_SIZE, 0);
+    if (bytes_received_username <= 0) {
             log_message("Failed to receive username: " + std::string(strerror(errno)));
             release_connection(conn);
-            return;
-        }
-        username_buffer[bytes_received_username] = '\0';
+        return;
+    }
+    username_buffer[bytes_received_username] = '\0';
         conn->username = std::string(username_buffer);
 
         broadcast(-1, conn->username + " has joined the chat");
 
-        while (true) {
-            char buffer[BUFFER_SIZE];
-            int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
-            if (bytes_received <= 0) {
+    while (true) {
+        char buffer[BUFFER_SIZE];
+        int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
+        if (bytes_received <= 0) {
                 if (bytes_received == 0) {
                     log_message("Client " + conn->username + " disconnected normally");
                 } else {
@@ -412,7 +402,6 @@ void handle_client(int client_socket) {
             Message msg;
             msg.sender_socket = client_socket;
             msg.content = message;
-            msg.timestamp = std::chrono::steady_clock::now();
 
             if (!message_queue.push(msg)) {
                 metrics.messages_dropped++;
@@ -506,7 +495,7 @@ void process_command(const Message& msg) {
                 }
             }
             metrics.record_message("private");
-        } else {
+            } else {
             std::string invalid = "Invalid command format.\n";
             if (send(msg.sender_socket, invalid.c_str(), invalid.length(), 0) <= 0) {
                 log_message("Failed to send invalid command message to client " + std::to_string(msg.sender_socket) + ": " + std::string(strerror(errno)));
@@ -533,8 +522,8 @@ int main() {
         }
         std::cout << "Started " << WORKER_THREADS << " worker threads" << std::endl;
 
-        int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-        if (server_socket == -1) {
+    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket == -1) {
             std::cerr << "Error: Could not create socket: " << strerror(errno) << std::endl;
             return 1;
         }
@@ -545,8 +534,8 @@ int main() {
         if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
             std::cerr << "Error: Could not set socket options: " << strerror(errno) << std::endl;
             close(server_socket);
-            return 1;
-        }
+        return 1;
+    }
 
         // Increase backlog queue size
         int backlog = 1000;  // Increased from SOMAXCONN
@@ -568,57 +557,54 @@ int main() {
             std::cerr << "Error: Could not set TCP_NODELAY: " << strerror(errno) << std::endl;
         }
 
-        // Remove socket timeouts for server socket to maintain high connection capacity
-        // Timeouts are only set for individual client connections in handle_client
-
         std::cout << "Set socket options" << std::endl;
 
-        sockaddr_in server_address;
-        server_address.sin_family = AF_INET;
-        server_address.sin_addr.s_addr = INADDR_ANY;
-        server_address.sin_port = htons(PORT);
+    sockaddr_in server_address;
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = INADDR_ANY;
+    server_address.sin_port = htons(PORT);
 
-        if (bind(server_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
+    if (bind(server_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
             std::cerr << "Error: Could not bind to port " << PORT << ": " << strerror(errno) << std::endl;
-            close(server_socket);
-            return 1;
-        }
+        close(server_socket);
+        return 1;
+    }
         std::cout << "Bound to port " << PORT << std::endl;
 
         if (listen(server_socket, backlog) == -1) {
             std::cerr << "Error: Could not listen on port " << PORT << ": " << strerror(errno) << std::endl;
-            close(server_socket);
-            return 1;
-        }
+        close(server_socket);
+        return 1;
+    }
 
-        std::cout << "Server is listening on port " << PORT << "..." << std::endl;
+    std::cout << "Server is listening on port " << PORT << "..." << std::endl;
         std::cout << "Maximum concurrent connections: " << MAX_CONNECTIONS << std::endl;
         std::cout << "Worker threads: " << WORKER_THREADS << std::endl;
 
-        while (true) {
+    while (true) {
             try {
-                sockaddr_in client_address;
-                socklen_t client_address_size = sizeof(client_address);
-                int client_socket = accept(server_socket, (sockaddr*)&client_address, &client_address_size);
-                if (client_socket == -1) {
+        sockaddr_in client_address;
+        socklen_t client_address_size = sizeof(client_address);
+        int client_socket = accept(server_socket, (sockaddr*)&client_address, &client_address_size);
+        if (client_socket == -1) {
                     std::cerr << "Error: Could not accept incoming connection: " << strerror(errno) << std::endl;
                     continue;
                 }
 
                 char client_ip[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &client_address.sin_addr, client_ip, INET_ADDRSTRLEN);
-                std::cout << "New connection from " << client_ip << ":" << ntohs(client_address.sin_port) << std::endl;
+                log_message("New connection from " + std::string(client_ip) + ":" + std::to_string(ntohs(client_address.sin_port)));
 
-                std::thread(handle_client, client_socket).detach();
+            std::thread(handle_client, client_socket).detach();
             } catch (const std::exception& e) {
                 std::cerr << "Exception in accept loop: " << e.what() << std::endl;
             } catch (...) {
                 std::cerr << "Unknown exception in accept loop" << std::endl;
             }
-        }
+    }
 
-        close(server_socket);
-        return 0;
+    close(server_socket);
+    return 0;
     } catch (const std::exception& e) {
         std::cerr << "Fatal exception: " << e.what() << std::endl;
         return 1;

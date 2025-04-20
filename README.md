@@ -42,7 +42,7 @@ make clean
 
 ### Server
 ```bash
-./server
+	 ./server
 ```
 The server will start and display:
 - Number of worker threads
