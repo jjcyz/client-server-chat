@@ -1,15 +1,15 @@
-# Compiled binaries
+*.o
+*.out
+
 server
-client
 stress_test
 
-# Build directory
-.dist/
-
-# IDE settings
-.vscode/
-
-# OS generated files
 .DS_Store
-.DS_Store?
-._*
+
+command_processor.o
+connection_pool.o
+main.o
+message_queue.o
+network_handler.o
+server.o
+server_metrics.o
