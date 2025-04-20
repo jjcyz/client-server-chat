@@ -58,7 +58,7 @@ void client_thread(int client_id) {
                   std::to_string(retries + 1) + "/" + std::to_string(MAX_RETRIES) + ")...");
 
         if (connect(client_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
-            log_message("Client " + std::to_string(client_id) + " failed to connect: " + std::string(strerror(errno)) + "\n");
+            log_message("Client " + std::to_string(client_id) + " failed to connect: " + std::string(strerror(errno)));
             close(client_socket);
             retries++;
             if (retries < MAX_RETRIES) {
@@ -82,7 +82,7 @@ void client_thread(int client_id) {
         // Send username
         std::string username = "stress_test_" + std::to_string(client_id);
         if (send(client_socket, username.c_str(), username.length(), 0) <= 0) {
-            log_message("Client " + std::to_string(client_id) + " failed to send username: " + std::string(strerror(errno)) + "\n");
+            log_message("Client " + std::to_string(client_id) + " failed to send username: " + std::string(strerror(errno)));
             close(client_socket);
             continue;
         }
@@ -95,7 +95,7 @@ void client_thread(int client_id) {
             std::string message = "Message " + std::to_string(i) + " from client " + std::to_string(client_id);
             if (send(client_socket, message.c_str(), message.length(), 0) <= 0) {
                 log_message("Client " + std::to_string(client_id) + " failed to send message " + std::to_string(i) +
-                          ": " + std::string(strerror(errno)) + "\n");
+                          ": " + std::string(strerror(errno)));
                 connection_error = true;
                 break;
             }
@@ -104,7 +104,7 @@ void client_thread(int client_id) {
             char buffer[1024];
             if (recv(client_socket, buffer, sizeof(buffer), 0) <= 0) {
                 log_message("Client " + std::to_string(client_id) + " failed to receive response for message " +
-                          std::to_string(i) + ": " + std::string(strerror(errno)) + "\n");
+                          std::to_string(i) + ": " + std::string(strerror(errno)));
                 connection_error = true;
                 break;
             }

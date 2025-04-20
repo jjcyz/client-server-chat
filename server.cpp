@@ -6,7 +6,6 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/tcp.h>
-#include <algorithm>
 #include <ctime>
 #include <mutex>
 #include <chrono>
@@ -143,15 +142,7 @@ std::mutex console_mtx;  // Add this near other mutex declarations
 
 void initialize_connection_pool() {
     std::lock_guard<std::mutex> lock(pool_mtx);
-    connection_pool.clear();
-    connection_pool.reserve(MAX_CONNECTIONS);
-    for (size_t i = 0; i < MAX_CONNECTIONS; i++) {
-        Connection conn;
-        conn.socket = -1;
-        conn.in_use = false;
-        conn.last_activity = std::chrono::steady_clock::now();
-        connection_pool.push_back(conn);
-    }
+    // No need to clear and reinitialize since it's already initialized with MAX_CONNECTIONS
     log_message("Connection pool initialized with " + std::to_string(MAX_CONNECTIONS) + " slots");
 }
 
@@ -345,22 +336,26 @@ void handle_client(int client_socket) {
 
         // Set socket options for better performance
         int opt = 1;
-        if (setsockopt(client_socket, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)) < 0) {
-            log_message("Error: Could not set keepalive for client: " + std::string(strerror(errno)));
-        }
-
-        // Disable Nagle's algorithm for better latency
-        if (setsockopt(client_socket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
-            log_message("Error: Could not set TCP_NODELAY for client: " + std::string(strerror(errno)));
-        }
-
-        // Increase socket buffer sizes
         int socket_buffer_size = 64 * 1024;  // 64KB buffer
-        if (setsockopt(client_socket, SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size)) < 0) {
-            log_message("Error: Could not set receive buffer size for client: " + std::string(strerror(errno)));
-        }
-        if (setsockopt(client_socket, SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size)) < 0) {
-            log_message("Error: Could not set send buffer size for client: " + std::string(strerror(errno)));
+
+        // Consolidate socket options
+        struct {
+            int level;
+            int optname;
+            const void* optval;
+            socklen_t optlen;
+            const char* error_msg;
+        } socket_options[] = {
+            {SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt), "keepalive"},
+            {IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt), "TCP_NODELAY"},
+            {SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size), "receive buffer size"},
+            {SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size), "send buffer size"}
+        };
+
+        for (const auto& option : socket_options) {
+            if (setsockopt(client_socket, option.level, option.optname, option.optval, option.optlen) < 0) {
+                log_message("Error: Could not set " + std::string(option.error_msg) + " for client: " + std::string(strerror(errno)));
+            }
         }
 
         conn->socket = client_socket;
@@ -513,81 +508,80 @@ void process_command(const Message& msg) {
 int main() {
     try {
         initialize_connection_pool();
-        std::cout << "Initialized connection pool with " << MAX_CONNECTIONS << " slots" << std::endl;
+        log_message("Initialized connection pool with " + std::to_string(MAX_CONNECTIONS) + " slots");
 
         // Start worker threads
         std::vector<std::thread> workers;
         for (int i = 0; i < WORKER_THREADS; i++) {
             workers.emplace_back(message_worker);
         }
-        std::cout << "Started " << WORKER_THREADS << " worker threads" << std::endl;
+        log_message("Started " + std::to_string(WORKER_THREADS) + " worker threads");
 
-    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket == -1) {
-            std::cerr << "Error: Could not create socket: " << strerror(errno) << std::endl;
+        int server_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (server_socket == -1) {
+            log_message("Error: Could not create socket: " + std::string(strerror(errno)));
             return 1;
         }
-        std::cout << "Created server socket" << std::endl;
+        log_message("Created server socket");
 
         // Set socket options for better performance
         int opt = 1;
-        if (setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-            std::cerr << "Error: Could not set socket options: " << strerror(errno) << std::endl;
-            close(server_socket);
-        return 1;
-    }
-
-        // Increase backlog queue size
-        int backlog = 1000;  // Increased from SOMAXCONN
-        if (setsockopt(server_socket, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)) < 0) {
-            std::cerr << "Error: Could not set keepalive: " << strerror(errno) << std::endl;
-        }
-
-        // Increase server socket buffer sizes
         int socket_buffer_size = 64 * 1024;  // 64KB buffer
-        if (setsockopt(server_socket, SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size)) < 0) {
-            std::cerr << "Error: Could not set receive buffer size: " << strerror(errno) << std::endl;
+
+        // Consolidate socket options
+        struct {
+            int level;
+            int optname;
+            const void* optval;
+            socklen_t optlen;
+            const char* error_msg;
+        } socket_options[] = {
+            {SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt), "socket options"},
+            {SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt), "keepalive"},
+            {SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size), "receive buffer size"},
+            {SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size), "send buffer size"},
+            {IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt), "TCP_NODELAY"}
+        };
+
+        for (const auto& option : socket_options) {
+            if (setsockopt(server_socket, option.level, option.optname, option.optval, option.optlen) < 0) {
+                log_message("Error: Could not set " + std::string(option.error_msg) + ": " + std::string(strerror(errno)));
+                close(server_socket);
+                return 1;
+            }
         }
-        if (setsockopt(server_socket, SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size)) < 0) {
-            std::cerr << "Error: Could not set send buffer size: " << strerror(errno) << std::endl;
+
+        log_message("Set socket options");
+
+        sockaddr_in server_address;
+        server_address.sin_family = AF_INET;
+        server_address.sin_addr.s_addr = INADDR_ANY;
+        server_address.sin_port = htons(PORT);
+
+        if (bind(server_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
+            log_message("Error: Could not bind to port " + std::to_string(PORT) + ": " + std::string(strerror(errno)));
+            close(server_socket);
+            return 1;
+        }
+        log_message("Bound to port " + std::to_string(PORT));
+
+        if (listen(server_socket, SOMAXCONN) == -1) {
+            log_message("Error: Could not listen on port " + std::to_string(PORT) + ": " + std::string(strerror(errno)));
+            close(server_socket);
+            return 1;
         }
 
-        // Disable Nagle's algorithm for better latency
-        if (setsockopt(server_socket, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) < 0) {
-            std::cerr << "Error: Could not set TCP_NODELAY: " << strerror(errno) << std::endl;
-        }
+        log_message("Server is listening on port " + std::to_string(PORT) + "...");
+        log_message("Maximum concurrent connections: " + std::to_string(MAX_CONNECTIONS));
+        log_message("Worker threads: " + std::to_string(WORKER_THREADS));
 
-        std::cout << "Set socket options" << std::endl;
-
-    sockaddr_in server_address;
-    server_address.sin_family = AF_INET;
-    server_address.sin_addr.s_addr = INADDR_ANY;
-    server_address.sin_port = htons(PORT);
-
-    if (bind(server_socket, (sockaddr*)&server_address, sizeof(server_address)) == -1) {
-            std::cerr << "Error: Could not bind to port " << PORT << ": " << strerror(errno) << std::endl;
-        close(server_socket);
-        return 1;
-    }
-        std::cout << "Bound to port " << PORT << std::endl;
-
-        if (listen(server_socket, backlog) == -1) {
-            std::cerr << "Error: Could not listen on port " << PORT << ": " << strerror(errno) << std::endl;
-        close(server_socket);
-        return 1;
-    }
-
-    std::cout << "Server is listening on port " << PORT << "..." << std::endl;
-        std::cout << "Maximum concurrent connections: " << MAX_CONNECTIONS << std::endl;
-        std::cout << "Worker threads: " << WORKER_THREADS << std::endl;
-
-    while (true) {
+        while (true) {
             try {
-        sockaddr_in client_address;
-        socklen_t client_address_size = sizeof(client_address);
-        int client_socket = accept(server_socket, (sockaddr*)&client_address, &client_address_size);
-        if (client_socket == -1) {
-                    std::cerr << "Error: Could not accept incoming connection: " << strerror(errno) << std::endl;
+                sockaddr_in client_address;
+                socklen_t client_address_size = sizeof(client_address);
+                int client_socket = accept(server_socket, (sockaddr*)&client_address, &client_address_size);
+                if (client_socket == -1) {
+                    log_message("Error: Could not accept incoming connection: " + std::string(strerror(errno)));
                     continue;
                 }
 
@@ -595,21 +589,21 @@ int main() {
                 inet_ntop(AF_INET, &client_address.sin_addr, client_ip, INET_ADDRSTRLEN);
                 log_message("New connection from " + std::string(client_ip) + ":" + std::to_string(ntohs(client_address.sin_port)));
 
-            std::thread(handle_client, client_socket).detach();
+                std::thread(handle_client, client_socket).detach();
             } catch (const std::exception& e) {
-                std::cerr << "Exception in accept loop: " << e.what() << std::endl;
+                log_message("Exception in accept loop: " + std::string(e.what()));
             } catch (...) {
-                std::cerr << "Unknown exception in accept loop" << std::endl;
+                log_message("Unknown exception in accept loop");
             }
-    }
+        }
 
-    close(server_socket);
-    return 0;
+        close(server_socket);
+        return 0;
     } catch (const std::exception& e) {
-        std::cerr << "Fatal exception: " << e.what() << std::endl;
+        log_message("Fatal exception: " + std::string(e.what()));
         return 1;
     } catch (...) {
-        std::cerr << "Unknown fatal exception" << std::endl;
+        log_message("Unknown fatal exception");
         return 1;
     }
 }
