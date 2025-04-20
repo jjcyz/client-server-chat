@@ -1,68 +1,110 @@
-# Client-Server Chat Application
+# High-Performance Client-Server Chat Application
 
-This repository contains a simple chat application implemented in C++ using sockets for communication between a server and multiple clients. The application supports basic functionalities such as broadcasting messages, listing active users, viewing chat history, and sending private messages.
+A robust, multi-threaded chat server implementation in C++ that supports concurrent client connections, message broadcasting, and stress testing capabilities. This application is designed for high performance and reliability in handling multiple simultaneous connections.
 
 ## Features
 
-- **Broadcast Messages**: Clients can send messages to all connected users.
-- **Private Messaging**: Send private messages to specific users using commands.
-- **User Management**: Join and leave notifications for users.
-- **Chat History**: Clients can request the chat history.
-- **List Active Users**: Clients can list all active users.
+### Core Functionality
+- **Multi-threaded Server**: Handles multiple client connections concurrently using worker threads
+- **Broadcast Messaging**: Efficient message distribution to all connected clients
+- **Connection Management**: Robust handling of client connections and disconnections
+- **Non-blocking I/O**: Asynchronous message handling for improved performance
+- **Socket Buffer Optimization**: Configurable socket buffer sizes for better throughput
 
-## Getting Started
+### Performance Features
+- **Worker Thread Pool**: Configurable number of worker threads for optimal performance
+- **Message Queue**: Efficient message queuing system with configurable size
+- **Connection Pool**: Pre-allocated connection pool for faster client handling
+- **Timeout Management**: Configurable socket timeouts for both client and server
+- **Error Recovery**: Automatic handling of connection failures and message retries
 
-#### Prerequisites
+### Testing Capabilities
+- **Stress Testing**: Built-in stress testing tool for performance evaluation
+- **Concurrent Client Simulation**: Test with multiple simultaneous client connections
+- **Configurable Test Parameters**: Adjustable client count, message frequency, and test duration
+- **Performance Metrics**: Track successful connections, failed attempts, and message throughput
 
-- A C++ compiler (e.g., g++)
+## Building the Application
+
+### Prerequisites
+- C++17 compiler (g++ recommended)
 - POSIX-compliant operating system (Linux, macOS)
+- pthread library
+- Standard C++ libraries
 
-#### Building the Application
-1. Clone the repository:
-   ```sh
-	git clone https://github.com/jjczy/Chat.git
-	cd Chat
-2. Compile the server and client programs:
-   ```sh
-	 g++ -std=c++11 -o server server.cpp
-	 g++ -std=c++11 -o client client.cpp
-#### Running the Application
-1. Running the Server:
-   ```sh
-	 ./server
-2. Running the client:
-   ```sh
-	 ./client
-3. Enter your username when prompted.
-4. Start chatting!
+### Compilation
+```bash
+# Build all targets (server and stress test)
+make all
 
-### Commands
-The client supports the following commands:
-- **Send a message**: Just type your message and press Enter.
-- **Private message**: `/msg <username> <message>` - Sends a private message to the specified user.
-- **List active users**: `/list` - Lists all active users.
-- **View chat history**: `/history` - Displays the chat history.
-- **Exit**: Type `exit` to leave the chat.
+# Build specific targets
+make server
+make stress_test
 
-### Code Overview
+# Clean build files
+make clean
+```
+
+## Running the Application
+
+### Server
+```bash
+./server
+```
+The server will start and display:
+- Number of worker threads
+- Maximum connections supported
+- Server IP and port
+- Connection pool status
+
+### Stress Test
+```bash
+./stress_test
+```
+The stress test will:
+- Create multiple client connections
+- Send messages at configured intervals
+- Report connection success/failure rates
+- Log any errors or timeouts
+
+### Configuration Parameters
+
 #### Server (`server.cpp`)
-- **Main function**: Initializes the server, binds to the specified port, listens for incoming connections, and spawns a new thread for each connected client.
-- **`handle_client` function**: Manages communication with a connected client, handles commands, and broadcasts messages.
-- **`broadcast` function**: Sends messages to all connected clients.
-- **`send_join_message` and `send_leave_message` functions**: Notify all users when someone joins or leaves.
-- **`handle_command` function**: Processes special commands like `/msg`, `/list`, and `/history`.
+- `WORKER_THREADS`: Number of worker threads (default: 4)
+- `MAX_CONNECTIONS`: Maximum concurrent connections (default: 200)
+- `MESSAGE_QUEUE_SIZE`: Size of message queue (default: 2000)
+- `MAX_MESSAGE_SIZE`: Maximum message size in bytes (default: 1024)
 
-#### Client (`client.cpp`)
+#### Stress Test (`stress_test.cpp`)
+- `NUM_CLIENTS`: Number of test clients (default: 50)
+- `CONCURRENT_THREADS`: Number of concurrent test threads (default: 25)
+- `BATCH_SIZE`: Clients per batch (default: 10)
+- `DELAY_MS`: Delay between batches in milliseconds (default: 200)
 
-- **Main function**: Connects to the server, handles user input, and sends messages.
-- **`receive_messages` function**: Runs in a separate thread to continuously receive messages from the server and display them to the user.
+## Architecture
 
-## What's Next
-- **Error Handling**:
-Error Messages: Provide informative error messages to users in case of failures or unexpected scenarios. Clearly communicate the nature of the error and any steps the user can take to resolve it. Log detailed error messages on the server side for debugging purposes. Exception Handling: Use exception handling mechanisms (try-catch blocks in C++) to gracefully handle runtime errors and exceptional conditions. Catch and handle exceptions at appropriate levels of abstraction to prevent crashes and maintain application stability.
-- **User Interface (UI) Enhancement**:
-Interactive Elements: Incorporate interactive elements such as buttons, input fields, and menus to streamline user interactions and make the application more user-friendly. Provide visual feedback (e.g., progress indicators, tooltips) to enhance usability. Message Formatting: Support basic text formatting options (e.g., bold, italic, underline) to allow users to express themselves more creatively in chat messages. Implement rich text rendering capabilities to display formatted messages in the chat interface.
-- **Security Considerations**:
-- Authentication: Implement user authentication mechanisms to verify the identity of clients and prevent unauthorized access to the chat system. Use strong authentication methods such as username/password authentication, OAuth, or token-based authentication. Access Control: Enforce access control policies to restrict user privileges and permissions based on roles and permissions. Define user roles (e.g., admin, regular user) and limit access to sensitive functionalities (e.g., administrative commands, chat history) accordingly.
+### Server Design
+- **Connection Pool**: Pre-allocated pool of connection objects for memory efficiency
+- **Worker Thread Pool**: Dedicated threads for processing client messages
+- **Message Queue**: Thread-safe queue for managing broadcast messages
+- **Non-blocking I/O**: Asynchronous socket operations for better performance
+
+### Performance Optimizations
+- Socket buffer size optimization
+- Efficient memory management with connection pooling
+- Non-blocking socket operations
+- Configurable timeouts and retry mechanisms
+
+## Utilities
+
+### restart.sh
+A utility script for server management:
+```bash
+./restart.sh
+```
+- Stops any running server instances
+- Rebuilds the server
+- Starts a new server instance
+
 
 
