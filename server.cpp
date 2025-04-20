@@ -19,7 +19,7 @@
 #define BUFFER_SIZE 4096
 #define MAX_CONNECTIONS 200
 #define MESSAGE_QUEUE_SIZE 2000
-#define WORKER_THREADS 8
+#define WORKER_THREADS 4
 #define MAX_MESSAGE_SIZE 4096
 #define CONNECTION_TIMEOUT 30
 #define MAX_RETRY_ATTEMPTS 5
@@ -230,38 +230,38 @@ void broadcast(int sender, const std::string& message) {
         }
     }
 
-    std::lock_guard<std::mutex> lock(pool_mtx);
-    for (auto& conn : connection_pool) {
-        if (conn.in_use && conn.socket != sender) {
-            int retry_count = 0;
-            while (retry_count < MAX_RETRY_ATTEMPTS) {
-                int result = send(conn.socket, timed_message.c_str(), timed_message.length(), 0);
-                if (result > 0) {
-                    conn.last_activity = std::chrono::steady_clock::now();  // Update activity time
-                    break;  // Success
-                }
+    // Send to all active connections
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx);
+        for (auto& conn : connection_pool) {
+            if (conn.in_use && conn.socket != sender) {
+                int retry_count = 0;
+                while (retry_count < MAX_RETRY_ATTEMPTS) {
+                    int result = send(conn.socket, timed_message.c_str(), timed_message.length(), 0);
+                    if (result > 0) {
+                        conn.last_activity = std::chrono::steady_clock::now();
+                        break;
+                    }
 
-                if (errno == EPIPE) {
-                    // Broken pipe - client disconnected
-                    log_message("Client " + conn.username + " disconnected unexpectedly");
-                    release_connection(&conn);
-                    break;
-                } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                    // Socket buffer full, try again
-                    retry_count++;
-                    if (retry_count < MAX_RETRY_ATTEMPTS) {
-                        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-                        continue;
-                    }
-                    log_message("Socket buffer full for client " + conn.username + " after " + std::to_string(MAX_RETRY_ATTEMPTS) + " attempts");
-                    // Don't release connection for buffer full, just skip this message
-                    break;
-                } else {
-                    log_message("Failed to broadcast to client " + conn.username + ": " + std::string(strerror(errno)));
-                    if (errno != EINTR && errno != EINPROGRESS) {
+                    if (errno == EPIPE) {
+                        log_message("Client " + conn.username + " disconnected unexpectedly");
                         release_connection(&conn);
+                        break;
+                    } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
+                        retry_count++;
+                        if (retry_count < MAX_RETRY_ATTEMPTS) {
+                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                            continue;
+                        }
+                        log_message("Socket buffer full for client " + conn.username);
+                        break;
+                    } else {
+                        log_message("Failed to broadcast to client " + conn.username + ": " + std::string(strerror(errno)));
+                        if (errno != EINTR && errno != EINPROGRESS) {
+                            release_connection(&conn);
+                        }
+                        break;
                     }
-                    break;
                 }
             }
         }

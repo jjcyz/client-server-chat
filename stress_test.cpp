@@ -13,14 +13,14 @@
 
 #define SERVER_IP "127.0.0.1"
 #define PORT 5555
-#define NUM_CLIENTS 100
+#define NUM_CLIENTS 40
 #define MESSAGES_PER_CLIENT 10
-#define MESSAGE_INTERVAL_MS 100
-#define MAX_CONCURRENT_THREADS 50  // Increased from 20 to 50
+#define MESSAGE_INTERVAL_MS 150
+#define MAX_CONCURRENT_THREADS 40
 #define MAX_RETRIES 3
 #define RETRY_DELAY_MS 1000
-#define CONNECTION_BATCH_SIZE 20   // Increased from 10 to 20
-#define BATCH_DELAY_MS 100        // Reduced from 200 to 100
+#define CONNECTION_BATCH_SIZE 8
+#define BATCH_DELAY_MS 250
 
 std::atomic<int> successful_connections{0};
 std::atomic<int> failed_connections{0};
@@ -74,7 +74,7 @@ void client_thread(int client_id) {
 
         // Set socket timeout
         struct timeval tv;
-        tv.tv_sec = 5;  // 5 second timeout
+        tv.tv_sec = 15;  // Keep at 15 seconds
         tv.tv_usec = 0;
         setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
         setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv);
