@@ -11,13 +11,6 @@ A robust, multi-threaded chat server implementation in C++ that supports concurr
 - **Non-blocking I/O**: Asynchronous message handling for improved performance
 - **Socket Buffer Optimization**: Configurable socket buffer sizes for better throughput
 
-### Performance Features
-- **Worker Thread Pool**: Configurable number of worker threads for optimal performance
-- **Message Queue**: Efficient message queuing system with configurable size
-- **Connection Pool**: Pre-allocated connection pool for faster client handling
-- **Timeout Management**: Configurable socket timeouts for both client and server
-- **Error Recovery**: Automatic handling of connection failures and message retries
-
 ### Testing Capabilities
 - **Stress Testing**: Built-in stress testing tool for performance evaluation
 - **Concurrent Client Simulation**: Test with multiple simultaneous client connections
