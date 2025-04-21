@@ -28,7 +28,7 @@ The server will start listening on port 5555.
 
 - `/stats` - Show server statistics
 - `/list` - List active users
-- `/msg <username> <message>` - Send private message
+- `/msg <username> <message>` - Send private message to <username>
 
 ## Technical Details
 
