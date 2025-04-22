@@ -80,7 +80,7 @@ void client_thread(int client_id) {
         setsockopt(client_socket, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tv, sizeof tv);
 
         // Send username
-        std::string username = "stress_test_" + std::to_string(client_id);
+        std::string username = "stress_test_" + std::to_string(client_id) + "\n";
         if (send(client_socket, username.c_str(), username.length(), 0) <= 0) {
             log_message("Client " + std::to_string(client_id) + " failed to send username: " + std::string(strerror(errno)));
             close(client_socket);
