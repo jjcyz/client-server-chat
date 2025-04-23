@@ -19,7 +19,7 @@
 #define PORT 5555
 #define BUFFER_SIZE 4096
 #define MAX_CONNECTIONS 200
-#define MESSAGE_QUEUE_SIZE 2000
+#define MESSAGE_QUEUE_SIZE 10000
 #define WORKER_THREADS 4
 #define MAX_MESSAGE_SIZE 4096
 #define CONNECTION_TIMEOUT 30
@@ -328,7 +328,7 @@ void handle_client(int client_socket) {
 
         // Set socket options for better performance
         int opt = 1;
-        int socket_buffer_size = 64 * 1024;  // 64KB buffer
+        int socket_buffer_size = 256 * 1024;  // Increased from 64KB to 256KB
 
         // Consolidate socket options
         struct {
