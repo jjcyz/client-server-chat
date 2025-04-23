@@ -1,13 +1,13 @@
 #include "message_queue.h"
 
-MessageQueue::MessageQueue(size_t size) : max_size(size) {}
+MessageQueue::MessageQueue(size_t size) : max_size(size), current_size(0) {}
 
 bool MessageQueue::push(Message msg) {
     std::unique_lock<std::mutex> lock(mtx);
-    if (current_size >= max_size) {
+    if (current_size.load() >= max_size) {
         return false;
     }
-    queue.push(msg);
+    queue.push(std::move(msg));
     current_size++;
     cv.notify_one();
     return true;
@@ -15,13 +15,13 @@ bool MessageQueue::push(Message msg) {
 
 Message MessageQueue::pop() {
     std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock, [this] { return !queue.empty(); });
-    Message msg = queue.front();
+    cv.wait(lock, [this]() -> bool { return !queue.empty(); });
+    Message msg = std::move(queue.front());
     queue.pop();
     current_size--;
     return msg;
 }
 
 size_t MessageQueue::size() const {
-    return current_size;
+    return current_size.load();
 }
