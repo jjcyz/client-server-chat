@@ -30,7 +30,7 @@ int main() {
         // Start worker threads
         std::vector<std::thread> workers;
         for (int i = 0; i < WORKER_THREADS; i++) {
-            workers.emplace_back(message_worker);
+            // workers.emplace_back(message_worker);
         }
         log_message("Started " + std::to_string(WORKER_THREADS) + " worker threads");
 

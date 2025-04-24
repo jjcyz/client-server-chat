@@ -18,7 +18,7 @@ private:
 public:
     explicit MessageQueue(size_t size);
     bool push(Message msg);
-    Message pop();
+
     size_t size() const;
 
     // Delete copy constructor and assignment operator

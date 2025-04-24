@@ -13,14 +13,6 @@ bool MessageQueue::push(Message msg) {
     return true;
 }
 
-Message MessageQueue::pop() {
-    std::unique_lock<std::mutex> lock(mtx);
-    cv.wait(lock, [this]() -> bool { return !queue.empty(); });
-    Message msg = std::move(queue.front());
-    queue.pop();
-    current_size--;
-    return msg;
-}
 
 size_t MessageQueue::size() const {
     return current_size.load();
