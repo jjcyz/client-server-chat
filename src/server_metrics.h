@@ -35,5 +35,5 @@ public:
 
 // Global metrics instance
 extern ServerMetrics metrics;
-
 #endif // SERVER_METRICS_H
+

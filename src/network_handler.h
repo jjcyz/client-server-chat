@@ -11,7 +11,7 @@
 #define MAX_HISTORY_SIZE 1000  // Maximum number of messages to keep in chat history
 
 void handle_client(int client_socket);
-void broadcast(int sender, const std::string& message);
-void log_message(const std::string& message);
 
+void log_message(const std::string& message);
 #endif // NETWORK_HANDLER_H
+

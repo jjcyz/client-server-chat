@@ -130,7 +130,7 @@ void message_worker() {
                         }
                     }
                 }
-                broadcast(msg.sender_socket, username + ": " + msg.content);
+                
             }
 
             auto end = std::chrono::steady_clock::now();
