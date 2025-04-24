@@ -13,3 +13,4 @@ message_queue.o
 network_handler.o
 server.o
 server_metrics.o
+stress_test.o

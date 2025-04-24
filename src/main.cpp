@@ -11,14 +11,11 @@
 #include <vector>
 #include <string>
 #include <mutex>
+#include "constants.h"
 
-// Constants
-#define MESSAGE_QUEUE_SIZE 2000
-#define WORKER_THREADS 4
 
 // Global variables
 MessageQueue message_queue(MESSAGE_QUEUE_SIZE);
-std::vector<std::string> chat_history;
 std::mutex history_mtx;
 std::mutex console_mtx;
 
