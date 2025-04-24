@@ -86,12 +86,6 @@ void handle_client(int client_socket) {
             buffer[bytes_received] = '\0';
             std::string message(buffer);
 
-            // Check message size
-            if (message.length() > MAX_MESSAGE_SIZE) {
-                log_message("Message too large from client " + conn->username);
-                continue;
-            }
-
             Message msg;
             msg.sender_socket = client_socket;
             msg.content = message;
