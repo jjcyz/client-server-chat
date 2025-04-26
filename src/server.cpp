@@ -1,4 +1,9 @@
 #include "server.h"
+#include "socket_utils.h"
+#include "constants.h"
+#include "connection_pool.h"
+#include "message_queue.h"
+#include "server_metrics.h"
 #include <iostream>
 #include <cstring>
 #include <thread>
@@ -14,105 +19,6 @@
 #include <map>
 #include <queue>
 #include <condition_variable>
-#include "constants.h"
-
-
-// Connection pool structure
-struct Connection {
-    int socket;
-    std::string username;
-    bool in_use;
-    std::chrono::steady_clock::time_point last_activity;
-};
-
-// Thread-safe message queue
-class MessageQueue {
-private:
-    std::queue<Message> queue;
-    std::mutex mtx;
-    std::condition_variable cv;
-    size_t max_size;
-    std::atomic<size_t> current_size{0};
-
-public:
-    MessageQueue(size_t size) : max_size(size) {}
-
-    bool push(Message msg) {
-        std::unique_lock<std::mutex> lock(mtx);
-        if (current_size >= max_size) {
-            return false;
-        }
-        queue.push(msg);
-        current_size++;
-        cv.notify_one();
-        return true;
-    }
-
-    Message pop() {
-        std::unique_lock<std::mutex> lock(mtx);
-        cv.wait(lock, [this] { return !queue.empty(); });
-        Message msg = queue.front();
-        queue.pop();
-        current_size--;
-        return msg;
-    }
-
-    size_t size() const {
-        return current_size;
-    }
-};
-
-// Performance metrics
-struct ServerMetrics {
-    std::atomic<size_t> total_messages_processed{0};
-    std::atomic<size_t> current_connections{0};
-    std::atomic<size_t> peak_connections{0};
-    std::atomic<size_t> total_bytes_transferred{0};
-    std::atomic<size_t> messages_dropped{0};
-    std::chrono::steady_clock::time_point start_time;
-    std::map<std::string, size_t> message_types;
-    std::vector<double> message_latencies;
-
-    ServerMetrics() : start_time(std::chrono::steady_clock::now()) {}
-
-    void record_message(const std::string& type, double latency = 0) {
-        total_messages_processed++;
-        message_types[type]++;
-        if (latency > 0) {
-            if (message_latencies.size() >= MAX_LATENCY_SAMPLES) {
-                message_latencies.erase(message_latencies.begin());
-            }
-            message_latencies.push_back(latency);
-        }
-    }
-
-    void record_bytes(size_t bytes) {
-        total_bytes_transferred += bytes;
-    }
-
-    void update_connections(size_t count) {
-        current_connections = count;
-        peak_connections = std::max(peak_connections.load(), count);
-    }
-
-    double get_uptime_seconds() const {
-        auto now = std::chrono::steady_clock::now();
-        return std::chrono::duration<double>(now - start_time).count();
-    }
-
-    double get_messages_per_second() const {
-        return total_messages_processed.load() / get_uptime_seconds();
-    }
-
-    double get_average_latency() const {
-        if (message_latencies.empty()) return 0;
-        double sum = 0;
-        for (double latency : message_latencies) {
-            sum += latency;
-        }
-        return sum / message_latencies.size();
-    }
-};
 
 ServerMetrics metrics;
 std::vector<Connection> connection_pool(MAX_CONNECTIONS);
@@ -320,24 +226,10 @@ void handle_client(int client_socket) {
         int opt = 1;
         int socket_buffer_size = 256 * 1024;  // Increased from 64KB to 256KB
 
-        // Consolidate socket options
-        struct {
-            int level;
-            int optname;
-            const void* optval;
-            socklen_t optlen;
-            const char* error_msg;
-        } socket_options[] = {
-            {SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt), "keepalive"},
-            {IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt), "TCP_NODELAY"},
-            {SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size), "receive buffer size"},
-            {SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size), "send buffer size"}
-        };
-
-        for (const auto& option : socket_options) {
-            if (setsockopt(client_socket, option.level, option.optname, option.optval, option.optlen) < 0) {
-                log_message("Error: Could not set " + std::string(option.error_msg) + " for client: " + std::string(strerror(errno)));
-            }
+        if (!configure_socket(client_socket, false)) {
+            log_message("Failed to configure client socket");
+            close(client_socket);
+            return;
         }
 
         conn->socket = client_socket;
