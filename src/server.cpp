@@ -14,18 +14,8 @@
 #include <map>
 #include <queue>
 #include <condition_variable>
+#include "constants.h"
 
-// Constants
-#define PORT 5555
-#define BUFFER_SIZE 4096
-#define MAX_CONNECTIONS 200
-#define MESSAGE_QUEUE_SIZE 10000
-#define WORKER_THREADS 4
-#define MAX_MESSAGE_SIZE 4096
-#define CONNECTION_TIMEOUT 30
-#define MAX_RETRY_ATTEMPTS 5
-#define MAX_HISTORY_SIZE 100
-#define MAX_LATENCY_SAMPLES 1000
 
 // Connection pool structure
 struct Connection {
