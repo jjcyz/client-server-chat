@@ -2,6 +2,7 @@
 #include "connection_pool.h"
 #include "message_queue.h"
 #include "server_metrics.h"
+#include "socket_utils.h"
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>

@@ -1,6 +1,7 @@
 #ifndef CONNECTION_POOL_H
 #define CONNECTION_POOL_H
 
+#include "constants.h"
 #include <string>
 #include <chrono>
 #include <vector>
