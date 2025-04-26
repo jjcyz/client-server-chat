@@ -22,13 +22,16 @@ CLIENT_TARGET = client
 
 all: build $(SERVER_TARGET) $(CLIENT_TARGET)
 
+directories:
+	@mkdir -p build
+
 $(SERVER_TARGET): $(SERVER_OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^
 
 $(CLIENT_TARGET): $(CLIENT_OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^
 
-build/%.o: src/%.cpp
+build/%.o: src/%.cpp | directories
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
