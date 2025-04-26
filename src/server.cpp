@@ -27,7 +27,7 @@ std::vector<std::string> chat_history;
 
 bool send_with_retry(int socket, const std::string& message, int max_retries = MAX_RETRY_ATTEMPTS) {
     for (int retry_count = 0; retry_count < max_retries; ++retry_count) {
-        int result = send(socket, message.c_str(), message.length(), 0);
+        int result = send(socket, message.c_str(), static_cast<ssize_t>(message.length()), 0);
         if (result > 0) {
             return true;  // Success
         }

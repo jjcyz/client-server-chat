@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I/Library/Developer/CommandLineTools/usr/include/c++/v1
+CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I./include -I/Library/Developer/CommandLineTools/usr/include/c++/v1
 LDFLAGS = -pthread
 
 SERVER_SRCS = src/main.cpp \
