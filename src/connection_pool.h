@@ -7,9 +7,6 @@
 #include <vector>
 #include <mutex>
 
-#define MAX_CONNECTIONS 200
-#define CONNECTION_TIMEOUT 30
-
 // Connection pool structure
 struct Connection {
     int socket;

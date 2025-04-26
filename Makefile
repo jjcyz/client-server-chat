@@ -8,7 +8,8 @@ SERVER_SRCS = src/main.cpp \
               src/message_queue.cpp \
               src/server_metrics.cpp \
               src/command_processor.cpp \
-              src/socket_utils.cpp
+              src/socket_utils.cpp \
+              src/server.cpp
 
 SERVER_OBJS = $(SERVER_SRCS:.cpp=.o)
 SERVER_TARGET = server

@@ -3,6 +3,7 @@
 #include "message_queue.h"
 #include "server_metrics.h"
 #include "socket_utils.h"
+#include "server.h"
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -13,7 +14,6 @@
 #include <chrono>
 #include <thread>
 
-extern MessageQueue message_queue;
 extern std::vector<std::string> chat_history;
 extern std::mutex history_mtx;
 extern std::mutex console_mtx;

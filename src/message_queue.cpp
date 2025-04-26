@@ -1,5 +1,7 @@
 #include "message_queue.h"
 
+MessageQueue message_queue(MESSAGE_QUEUE_SIZE);
+
 MessageQueue::MessageQueue(size_t size) : max_size(size), current_size(0) {}
 
 bool MessageQueue::push(Message msg) {

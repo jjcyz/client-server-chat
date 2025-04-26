@@ -68,4 +68,5 @@ void log_socket_error(const std::string& operation, const std::string& error) {
     if (errno != 0) {
         error_msg += " (" + std::string(strerror(errno)) + ")";
     }
+    std::cerr << error_msg << std::endl;
 }

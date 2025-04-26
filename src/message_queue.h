@@ -27,4 +27,6 @@ public:
     MessageQueue& operator=(const MessageQueue&) = delete;
 };
 
+extern MessageQueue message_queue;
+
 #endif // MESSAGE_QUEUE_H
