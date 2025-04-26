@@ -35,27 +35,10 @@ void handle_client(int client_socket) {
             return;
         }
 
-        // Set socket options for better performance
-        int opt = 1;
-        int socket_buffer_size = 64 * 1024;  // 64KB buffer
-
-        struct {
-            int level;
-            int optname;
-            const void* optval;
-            socklen_t optlen;
-            const char* error_msg;
-        } socket_options[] = {
-            {SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt), "keepalive"},
-            {IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt), "TCP_NODELAY"},
-            {SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size), "receive buffer size"},
-            {SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size), "send buffer size"}
-        };
-
-        for (const auto& option : socket_options) {
-            if (setsockopt(client_socket, option.level, option.optname, option.optval, option.optlen) < 0) {
-                log_message("Error: Could not set " + std::string(option.error_msg) + " for client: " + std::string(strerror(errno)));
-            }
+        if (!configure_socket(client_socket, false)) {
+            log_message("Error: Could not configure client socket");
+            release_connection(conn);
+            return;
         }
 
         conn->socket = client_socket;

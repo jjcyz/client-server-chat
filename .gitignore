@@ -1,16 +1,13 @@
-*.o
-*.out
+# Build directory
+build/
 
+# Executables
 server
+client
 stress_test
 
-.DS_Store
+# Object files
+*.o
 
-command_processor.o
-connection_pool.o
-main.o
-message_queue.o
-network_handler.o
-server.o
-server_metrics.o
-stress_test.o
+# OS specific files
+.DS_Store

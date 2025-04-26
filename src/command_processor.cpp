@@ -18,12 +18,11 @@ static std::unordered_map<std::string, CommandHandler> command_map = {
 extern MessageQueue message_queue;
 
 void process_command(const Message& msg) {
-    if (msg.content == "/stats") {
-        handle_stats(msg);
-    } else if (msg.content == "/list") {
-        handle_list(msg);
-    } else if (msg.content.substr(0, 5) == "/msg ") {
-        handle_msg(msg);
+    const auto space_pos = msg.content.find(' ');
+    const std::string_view command(msg.content.data(),
+        space_pos == std::string::npos ? msg.content.length() : space_pos);
+    if (auto it = command_map.find(std::string(command)); it != command_map.end()) {
+        it->second(msg);
     } else {
         handle_unknown(msg);
     }
@@ -105,7 +104,7 @@ void handle_msg(const Message& msg) {
         }
         metrics.record_message("private");
     } else {
-        std::string invalid = "Invalid command format.\n";
+        std::string invalid = "Invalid command format or user does not exist.\n";
         if (send(msg.sender_socket, invalid.c_str(), invalid.length(), 0) <= 0) {
             log_message("Failed to send invalid command message to client " + std::to_string(msg.sender_socket) + ": " + std::string(strerror(errno)));
         }

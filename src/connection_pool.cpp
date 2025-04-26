@@ -19,34 +19,42 @@ void initialize_connection_pool() {
 
 Connection* get_available_connection() {
     std::lock_guard<std::mutex> lock(pool_mtx);
-    auto now = std::chrono::steady_clock::now();
+    const auto now = std::chrono::steady_clock::now();
+    Connection* stale_connection = nullptr;
 
-    // First try to find an unused connection
+    // Single pass through the pool
     for (auto& conn : connection_pool) {
         if (!conn.in_use) {
             conn.in_use = true;
             conn.last_activity = now;
+            conn.socket = -1;  // Initialize socket to invalid
+            conn.username.clear();  // Clear any old username
             return &conn;
+        }
+
+        if (!stale_connection && conn.in_use) {
+            const auto duration = std::chrono::duration_cast<std::chrono::seconds>(
+                now - conn.last_activity).count();
+            if (duration > CONNECTION_TIMEOUT) {
+                stale_connection = &conn;
+            }
         }
     }
 
-    // If no unused connections, try to find a stale connection
-    for (auto& conn : connection_pool) {
-        if (conn.in_use) {
-            auto duration = std::chrono::duration_cast<std::chrono::seconds>(
-                now - conn.last_activity).count();
-            if (duration > CONNECTION_TIMEOUT) {
-                // Connection is stale, clean it up
-                if (conn.socket != -1) {
-                    close(conn.socket);
-                    log_message("Cleaned up stale connection from " + conn.username);
-                }
-                conn.socket = -1;
-                conn.in_use = true;
-                conn.last_activity = now;
-                return &conn;
-            }
+    if (stale_connection) {
+        // Clean up the stale connection
+        if (stale_connection->socket != -1) {
+            close(stale_connection->socket);
+            log_message("Cleaned up stale connection from " + stale_connection->username);
         }
+
+        // Reset the connection state
+        stale_connection->socket = -1;
+        stale_connection->username.clear();
+        stale_connection->in_use = true;
+        stale_connection->last_activity = now;
+
+        return stale_connection;
     }
 
     log_message("No available connections in pool");

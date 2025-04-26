@@ -25,6 +25,27 @@ std::mutex history_mtx;
 std::mutex console_mtx;
 std::vector<std::string> chat_history;
 
+bool send_with_retry(int socket, const std::string& message, int max_retries = MAX_RETRY_ATTEMPTS) {
+    for (int retry_count = 0; retry_count < max_retries; ++retry_count) {
+        int result = send(socket, message.c_str(), message.length(), 0);
+        if (result > 0) {
+            return true;  // Success
+        }
+
+        if (errno == EPIPE) {
+            return false;  // Client disconnected
+        }
+
+        if (errno != EAGAIN && errno != EWOULDBLOCK) {
+            return false;  // Unrecoverable error
+        }
+
+        // Wait before retry
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    return false;  // Max retries reached
+}
+
 void broadcast(int sender, const std::string& message) {
     auto start = std::chrono::steady_clock::now();
 
@@ -35,57 +56,53 @@ void broadcast(int sender, const std::string& message) {
         return;
     }
 
-    std::time_t now = std::time(nullptr);
-    char time_buffer[20];
-    std::strftime(time_buffer, sizeof(time_buffer), "[%H:%M:%S] ", std::localtime(&now));
-
-    std::string timed_message = time_buffer + message;
+    // Pre-allocate the timed message
+    std::string timed_message;
+    {
+        std::time_t now = std::time(nullptr);
+        char time_buffer[20];
+        std::strftime(time_buffer, sizeof(time_buffer), "[%H:%M:%S] ", std::localtime(&now));
+        timed_message.reserve(strlen(time_buffer) + message.length());
+        timed_message += time_buffer;
+        timed_message += message;
+    }
 
     metrics.record_message("broadcast");
     metrics.record_bytes(timed_message.length() * (metrics.current_connections.load() - 1));
 
+    // Store in chat history
     {
         std::lock_guard<std::mutex> lock(history_mtx);
         chat_history.push_back(timed_message);
-        // Limit history size to prevent memory growth
         if (chat_history.size() > MAX_HISTORY_SIZE) {
             chat_history.erase(chat_history.begin());
         }
     }
 
+    // Track failed connections for batch cleanup
+    std::vector<Connection*> failed_connections;
+    failed_connections.reserve(8);  // Reserve space for potential failures
+
     // Send to all active connections
     {
         std::lock_guard<std::mutex> lock(pool_mtx);
         for (auto& conn : connection_pool) {
-            if (conn.in_use && conn.socket != sender) {
-                int retry_count = 0;
-                while (retry_count < MAX_RETRY_ATTEMPTS) {
-                    int result = send(conn.socket, timed_message.c_str(), timed_message.length(), 0);
-                    if (result > 0) {
-                        conn.last_activity = std::chrono::steady_clock::now();
-                        break;
-                    }
+            if (!conn.in_use || conn.socket == sender) {
+                continue;
+            }
 
-                    if (errno == EPIPE) {
-                        log_message("Client " + conn.username + " disconnected unexpectedly");
-                        release_connection(&conn);
-                        break;
-                    } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                        retry_count++;
-                        if (retry_count < MAX_RETRY_ATTEMPTS) {
-                            std::this_thread::sleep_for(std::chrono::milliseconds(50));
-                            continue;
-                        }
-                        log_message("Socket buffer full for client " + conn.username);
-                        break;
-                    } else {
-                        log_message("Failed to broadcast to client " + conn.username + ": " + std::string(strerror(errno)));
-                        release_connection(&conn);
-                        break;
-                    }
-                }
+            if (!send_with_retry(conn.socket, timed_message)) {
+                failed_connections.push_back(&conn);
+                log_message("Failed to broadcast to client " + conn.username);
+            } else {
+                conn.last_activity = std::chrono::steady_clock::now();
             }
         }
+    }
+
+    // Cleanup failed connections
+    for (auto* conn : failed_connections) {
+        release_connection(conn);
     }
 
     auto end = std::chrono::steady_clock::now();

@@ -5,12 +5,12 @@ MessageQueue message_queue(MESSAGE_QUEUE_SIZE);
 MessageQueue::MessageQueue(size_t size) : max_size(size), current_size(0) {}
 
 bool MessageQueue::push(Message msg) {
-    std::unique_lock<std::mutex> lock(mtx);
-    if (current_size.load() >= max_size) {
+    std::lock_guard<std::mutex> lock(mtx);
+    if (current_size >= max_size) {
         return false;
     }
     queue.push(std::move(msg));
-    current_size++;
+    ++current_size;
     cv.notify_one();
     return true;
 }

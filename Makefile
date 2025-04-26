@@ -11,16 +11,16 @@ SERVER_SRCS = src/main.cpp \
               src/socket_utils.cpp \
               src/server.cpp
 
-SERVER_OBJS = $(SERVER_SRCS:.cpp=.o)
+SERVER_OBJS = $(patsubst src/%.cpp,build/%.o,$(SERVER_SRCS))
 SERVER_TARGET = server
 
 CLIENT_SRCS = src/client.cpp
-CLIENT_OBJS = $(CLIENT_SRCS:.cpp=.o)
+CLIENT_OBJS = $(patsubst src/%.cpp,build/%.o,$(CLIENT_SRCS))
 CLIENT_TARGET = client
 
-.PHONY: all clean
+.PHONY: all clean build
 
-all: $(SERVER_TARGET) $(CLIENT_TARGET)
+all: build $(SERVER_TARGET) $(CLIENT_TARGET)
 
 $(SERVER_TARGET): $(SERVER_OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^
@@ -28,7 +28,7 @@ $(SERVER_TARGET): $(SERVER_OBJS)
 $(CLIENT_TARGET): $(CLIENT_OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^
 
-%.o: %.cpp
+build/%.o: src/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 clean:
