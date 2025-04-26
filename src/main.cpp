@@ -3,6 +3,7 @@
 #include "message_queue.h"
 #include "server_metrics.h"
 #include "command_processor.h"
+#include "socket_utils.h"
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -33,33 +34,12 @@ int main() {
         }
         log_message("Created server socket");
 
-        // Set socket options for better performance
-        int opt = 1;
-        int socket_buffer_size = 64 * 1024;  // 64KB buffer
-
-        // Consolidate socket options
-        struct {
-            int level;
-            int optname;
-            const void* optval;
-            socklen_t optlen;
-            const char* error_msg;
-        } socket_options[] = {
-            {SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt), "socket options"},
-            {SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt), "keepalive"},
-            {SOL_SOCKET, SO_RCVBUF, &socket_buffer_size, sizeof(socket_buffer_size), "receive buffer size"},
-            {SOL_SOCKET, SO_SNDBUF, &socket_buffer_size, sizeof(socket_buffer_size), "send buffer size"},
-            {IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt), "TCP_NODELAY"}
-        };
-
-        for (const auto& option : socket_options) {
-            if (setsockopt(server_socket, option.level, option.optname, option.optval, option.optlen) < 0) {
-                log_message("Error: Could not set " + std::string(option.error_msg) + ": " + std::string(strerror(errno)));
-                close(server_socket);
-                return 1;
-            }
+        // Use socket_utils to configure the socket
+        if (!configure_socket(server_socket, true)) {
+            log_message("Error: Could not configure server socket");
+            close(server_socket);
+            return 1;
         }
-
         log_message("Set socket options");
 
         sockaddr_in server_address;
