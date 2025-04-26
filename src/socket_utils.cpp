@@ -6,6 +6,8 @@
 #include <unistd.h>
 #include <iostream>
 #include <vector>
+#include <netinet/in.h>  // Add this for IPPROTO_TCP
+#include <netinet/tcp.h> // Add this for TCP_NODELAY
 
 struct SocketOption {
         int level;
@@ -13,6 +15,11 @@ struct SocketOption {
         const void* optval;
         socklen_t optlen;
         const char* error_msg;
+
+        // Constructor to allow brace-enclosed initialization
+        SocketOption(int level, int optname, const void* optval, socklen_t optlen, const char* error_msg)
+            : level(level), optname(optname), optval(optval), optlen(optlen), error_msg(error_msg) {}
+
 };
 
 bool configure_socket(int socket, bool is_server) {
