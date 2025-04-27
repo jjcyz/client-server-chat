@@ -15,11 +15,22 @@ A high-performance, multi-threaded chat server implementation in C++.
 ## Build & Run
 
 ```bash
-# Build the server
+# Clone the repository with submodules
+git clone https://github.com/jjcyz/client-server-chat.git
+git submodule init
+git submodule update
+
+# Build
+mkdir build
+cd build
+cmake ..
 make
 
-# Run the server
+# Run server
 ./server
+
+# Run client
+./client
 ```
 
 The server will start listening on port 5555.
@@ -30,6 +41,13 @@ The server will start listening on port 5555.
 - `/list` - List active users
 - `/msg <username> <message>` - Send private message to <username>
 
+## Testing
+
+```bash
+# Build and run tests (from build directory)
+make check
+```
+
 ## Technical Details
 
 - Max connections: 200
@@ -37,15 +55,6 @@ The server will start listening on port 5555.
 - Worker threads: 4
 - Chat history size: 1000 messages
 - Default port: 5555
-
-## Testing
-
-A stress test client is included:
-```bash
-# Build and run stress test
-g++ -std=c++17 -pthread stress_test.cpp -o stress_test
-./stress_test
-```
 
 
 

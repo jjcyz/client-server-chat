@@ -1,11 +1,13 @@
 #ifndef SERVER_H
 #define SERVER_H
 
+#include "constants.h"
 #include <string>
 #include <chrono>
 #include <mutex>
 #include <vector>
-#include "constants.h"
+#include <sys/socket.h>
+#include <unistd.h>
 
 // Message structure for the queue
 struct Message {

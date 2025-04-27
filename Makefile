@@ -2,8 +2,14 @@ CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I./include -I/Library/Developer/CommandLineTools/usr/include/c++/v1
 LDFLAGS = -pthread
 
-SERVER_SRCS = src/main.cpp \
-              src/network_handler.cpp \
+# Google Test configuration
+GTEST_DIR = tests/lib/googletest/googletest
+GTEST_INCLUDE = -I$(GTEST_DIR)/include
+GTEST_LIB = $(GTEST_DIR)/lib/libgtest.a
+GTEST_MAIN_LIB = $(GTEST_DIR)/lib/libgtest_main.a
+
+# Source files (excluding main.cpp)
+SERVER_SRCS = src/network_handler.cpp \
               src/connection_pool.cpp \
               src/message_queue.cpp \
               src/server_metrics.cpp \
@@ -11,28 +17,45 @@ SERVER_SRCS = src/main.cpp \
               src/socket_utils.cpp \
               src/server.cpp
 
+# Main source file
+MAIN_SRC = src/main.cpp
+
+# Object files
 SERVER_OBJS = $(patsubst src/%.cpp,build/%.o,$(SERVER_SRCS))
+MAIN_OBJ = build/main.o
+
+# Targets
 SERVER_TARGET = server
+TEST_TARGET = build/server_test
 
-CLIENT_SRCS = src/client.cpp
-CLIENT_OBJS = $(patsubst src/%.cpp,build/%.o,$(CLIENT_SRCS))
-CLIENT_TARGET = client
+.PHONY: all clean test
 
-.PHONY: all clean build
-
-all: build $(SERVER_TARGET) $(CLIENT_TARGET)
+all: directories $(SERVER_TARGET)
 
 directories:
 	@mkdir -p build
+	@mkdir -p build/tests
 
-$(SERVER_TARGET): $(SERVER_OBJS)
-	$(CXX) $(LDFLAGS) -o $@ $^
+# Build server library (without main)
+build/libserver.a: $(SERVER_OBJS)
+	ar rcs $@ $^
 
-$(CLIENT_TARGET): $(CLIENT_OBJS)
+$(SERVER_TARGET): $(MAIN_OBJ) build/libserver.a
 	$(CXX) $(LDFLAGS) -o $@ $^
 
 build/%.o: src/%.cpp | directories
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
+# Google Test rules
+$(GTEST_LIB):
+	cd $(GTEST_DIR) && cmake . && make
+
+# Build and run tests
+$(TEST_TARGET): tests/server_test.cpp build/libserver.a $(GTEST_LIB)
+	$(CXX) $(CXXFLAGS) $(GTEST_INCLUDE) $^ -o $@ $(GTEST_LIB) $(GTEST_MAIN_LIB) $(LDFLAGS)
+
+test: $(TEST_TARGET)
+	./$(TEST_TARGET) --gtest_color=yes
+
 clean:
-	rm -f $(SERVER_OBJS) $(CLIENT_OBJS) $(SERVER_TARGET) $(CLIENT_TARGET)
+	rm -rf build $(SERVER_TARGET)
