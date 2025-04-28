@@ -41,7 +41,18 @@ target_link_libraries(server_test
 # Add test to CTest
 add_test(NAME server_test COMMAND server_test)
 
-# Add custom test target with output on failure
-add_custom_target(check
-    COMMAND ctest --output-on-failure
-    DEPENDS server_test)
+# Add custom targets for testing
+add_custom_target(build_tests
+    DEPENDS server_test
+)
+
+add_custom_target(run_tests
+    COMMAND ./server_test --gtest_color=yes
+    DEPENDS server_test
+)
+
+# Add custom target that both builds and runs tests
+add_custom_target(test
+    COMMAND ${CMAKE_COMMAND} --build . --target build_tests
+    COMMAND ${CMAKE_COMMAND} --build . --target run_tests
+)

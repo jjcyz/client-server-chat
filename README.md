@@ -41,13 +41,6 @@ The server will start listening on port 5555.
 - `/list` - List active users
 - `/msg <username> <message>` - Send private message to <username>
 
-## Testing
-
-```bash
-# Build and run tests (from build directory)
-make check
-```
-
 ## Technical Details
 
 - Max connections: 200
@@ -55,6 +48,33 @@ make check
 - Worker threads: 4
 - Chat history size: 1000 messages
 - Default port: 5555
+
+### Common Development Commands
+
+```bash
+# Clean build
+cd build
+rm -rf *
+cmake ..
+make
+
+# Build only
+make
+
+# Run tests
+make test
+
+# Run server and client
+./server    # Terminal 1
+./client    # Terminal 2
+```
+
+## Alternative Testing
+
+```bash
+cd build
+make test      # Builds and runs all tests with colored output
+```
 
 
 
