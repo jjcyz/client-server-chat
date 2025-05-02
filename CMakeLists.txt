@@ -23,8 +23,14 @@ target_link_libraries(server server_lib pthread)
 add_executable(client src/client.cpp)
 target_link_libraries(client pthread)
 
-# Add Google Test
-add_subdirectory(tests/lib/googletest)
+# Google Test setup
+include(FetchContent)
+FetchContent_Declare(
+  googletest
+  URL https://github.com/google/googletest/archive/refs/tags/v1.14.0.zip
+  DOWNLOAD_EXTRACT_TIMESTAMP TRUE  # Added this line to fix the warning
+)
+FetchContent_MakeAvailable(googletest)
 
 # Enable testing
 enable_testing()
@@ -33,26 +39,29 @@ enable_testing()
 add_executable(server_test tests/server_test.cpp)
 target_link_libraries(server_test
     server_lib
-    gtest
-    gtest_main
+    GTest::gtest_main
     pthread
 )
 
-# Add test to CTest
-add_test(NAME server_test COMMAND server_test)
+add_executable(client_test tests/client_test.cpp)
+target_link_libraries(client_test
+    GTest::gtest_main
+    pthread
+)
+
+include(GoogleTest)
+gtest_discover_tests(server_test)
+gtest_discover_tests(client_test)
 
 # Add custom targets for testing
 add_custom_target(build_tests
     DEPENDS server_test
+    DEPENDS client_test
 )
 
-add_custom_target(run_tests
+add_custom_target(run_all_tests
     COMMAND ./server_test --gtest_color=yes
+    COMMAND ./client_test --gtest_color=yes
     DEPENDS server_test
-)
-
-# Add custom target that both builds and runs tests
-add_custom_target(test
-    COMMAND ${CMAKE_COMMAND} --build . --target build_tests
-    COMMAND ${CMAKE_COMMAND} --build . --target run_tests
+    DEPENDS client_test
 )
