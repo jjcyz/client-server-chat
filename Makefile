@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I./include -I/Library/Developer/CommandLineTools/usr/include/c++/v1
-LDFLAGS = -pthread -lssl -lcrypto -L/path/to/sqlite/lib -lsqlite3
+LDFLAGS = -pthread -lssl -lcrypto -lsqlite3
 # Google Test configuration
 GTEST_DIR = tests/lib/googletest/googletest
 GTEST_INCLUDE = -I$(GTEST_DIR)/include
@@ -41,7 +41,7 @@ build/libserver.a: $(SERVER_OBJS)
 	ar rcs $@ $^
 
 $(SERVER_TARGET): $(MAIN_OBJ) build/libserver.a
-	$(CXX) $(LDFLAGS) -o $@ $^
+	$(CXX) -o $@ $^ $(LDFLAGS)
 
 build/%.o: src/%.cpp | directories
 	$(CXX) $(CXXFLAGS) -c $< -o $@
