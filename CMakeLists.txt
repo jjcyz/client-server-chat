@@ -5,8 +5,14 @@ project(chat_server)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+# Find required packages
+find_package(SQLite3 REQUIRED)
+find_package(OpenSSL REQUIRED)
+
 # Include directories
 include_directories(${PROJECT_SOURCE_DIR}/include)
+include_directories(${SQLite3_INCLUDE_DIRS})
+include_directories(${OPENSSL_INCLUDE_DIR})
 
 # Add source files (excluding main.cpp)
 file(GLOB SERVER_SOURCES "src/*.cpp")
@@ -17,7 +23,7 @@ add_library(server_lib ${SERVER_SOURCES})
 
 # Create the main server executable
 add_executable(server src/main.cpp)
-target_link_libraries(server server_lib pthread)
+target_link_libraries(server server_lib pthread ${SQLite3_LIBRARIES} ${OPENSSL_CRYPTO_LIBRARY})
 
 # Create the client executable
 add_executable(client src/client.cpp)
