@@ -2,6 +2,7 @@
 #include "server_metrics.h"
 #include "connection_pool.h"
 #include "network_handler.h"
+#include "database.h"
 #include <sys/socket.h>
 #include <cstring>
 #include <unordered_map>
@@ -12,7 +13,9 @@ using CommandHandler = std::function<void(const Message&)>;
 static std::unordered_map<std::string, CommandHandler> command_map = {
     {"/stats", handle_stats},
     {"/list", handle_list},
-    {"/msg", handle_msg}
+    {"/msg", handle_msg},
+    {"/register", handle_register},
+    {"/login", handle_login}
 };
 
 extern MessageQueue message_queue;
@@ -118,5 +121,48 @@ void handle_unknown(const Message& msg) {
         log_message("Failed to send unknown command message to client " + std::to_string(msg.sender_socket) + ": " + std::string(strerror(errno)));
     }
     metrics.record_message("unknown_command");
+}
+
+void handle_register(const Message& msg) {
+    // Expected format: /register username password
+    size_t first_space = msg.content.find(' ');
+    size_t second_space = msg.content.find(' ', first_space + 1);
+    if (first_space == std::string::npos || second_space == std::string::npos) {
+        std::string reply = "Usage: /register <username> <password>\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        return;
+    }
+    std::string username = msg.content.substr(first_space + 1, second_space - first_space - 1);
+    std::string password = msg.content.substr(second_space + 1);
+    Database& db = Database::getInstance();
+    if (db.createUser(username, password)) {
+        std::string reply = "Registration successful!";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+    } else {
+        std::string reply = "Registration failed (user may already exist).\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+    }
+}
+
+void handle_login(const Message& msg) {
+    // Expected format: /login username password
+    size_t first_space = msg.content.find(' ');
+    size_t second_space = msg.content.find(' ', first_space + 1);
+    if (first_space == std::string::npos || second_space == std::string::npos) {
+        std::string reply = "Usage: /login <username> <password>\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        return;
+    }
+    std::string username = msg.content.substr(first_space + 1, second_space - first_space - 1);
+    std::string password = msg.content.substr(second_space + 1);
+    Database& db = Database::getInstance();
+    if (db.authenticateUser(username, password)) {
+        std::string reply = "Login successful!";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        // TODO: Mark user as authenticated in connection_pool
+    } else {
+        std::string reply = "Login failed.\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+    }
 }
 
