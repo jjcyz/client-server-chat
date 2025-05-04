@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I./include -I/Library/Developer/CommandLineTools/usr/include/c++/v1
-LDFLAGS = -pthread -lssl -lcrypto -lsqlite3
+LDFLAGS = -pthread -lssl -lcrypto -lsqlite3 -L/path/to/sqlite/lib
 
 # Google Test configuration
 GTEST_DIR = tests/lib/googletest/googletest
