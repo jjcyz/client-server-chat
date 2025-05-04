@@ -1,4 +1,4 @@
-#include "../include/database.h"
+#include "database.h"
 #include <sqlite3.h>
 #include <sstream>
 #include <iomanip>
@@ -10,6 +10,7 @@
 #include <algorithm>
 
 const char* Database::DATABASE_PATH = "chat_server.db";
+const int Database::SESSION_DURATION_HOURS;
 
 Database& Database::getInstance() {
     static Database instance;
