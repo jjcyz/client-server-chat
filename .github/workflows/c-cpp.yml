@@ -23,4 +23,6 @@ jobs:
     - name: Clean build
       run: make clean
     - name: Build with verbose output
-      run: make V=1
+      run: |
+        sed -i 's|-L/path/to/sqlite/lib||g' Makefile
+        make V=1
