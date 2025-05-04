@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall -Wextra -pthread -I./include -I/Library/Developer/CommandLineTools/usr/include/c++/v1
-LDFLAGS = -pthread
+LDFLAGS = -pthread -lssl -lcrypto -lsqlite3
 
 # Google Test configuration
 GTEST_DIR = tests/lib/googletest/googletest
@@ -15,7 +15,8 @@ SERVER_SRCS = src/network_handler.cpp \
               src/server_metrics.cpp \
               src/command_processor.cpp \
               src/socket_utils.cpp \
-              src/server.cpp
+              src/server.cpp \
+              src/database.cpp
 
 # Main source file
 MAIN_SRC = src/main.cpp
