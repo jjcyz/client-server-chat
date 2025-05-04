@@ -19,3 +19,5 @@ Testing/
 
 # OS specific files
 .DS_Store
+
+chat_server.db
