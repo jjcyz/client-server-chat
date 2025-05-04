@@ -1,4 +1,5 @@
-#pragma once
+#ifndef DATABASE_H
+#define DATABASE_H
 
 #include <sqlite3.h>
 #include <string>
@@ -54,3 +55,5 @@ private:
     static const char* DATABASE_PATH;
     static const int SESSION_DURATION_HOURS = 24;
 };
+
+#endif // DATABASE_H
