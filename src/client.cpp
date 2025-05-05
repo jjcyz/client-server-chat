@@ -4,13 +4,14 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <functional>
 
 #define PORT 5555
 #define BUFFER_SIZE 1024
 
-void receive_messages(int client_socket) {
+void receive_messages(int client_socket, bool& authenticated) {
     while (true) {
-        char buffer[BUFFER_SIZE];
+        char buffer[BUFFER_SIZE + 1];
         int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);
         if (bytes_received <= 0) {
             std::cout << "Connection closed." << std::endl;
@@ -18,13 +19,10 @@ void receive_messages(int client_socket) {
         } else {
             buffer[bytes_received] = '\0';
             std::string message(buffer);
-
-            if (message.find("[Chat History]") == 0) {
-                std::cout << message << std::endl;
-            } else if (message.find("Active users:") == 0) {
-                std::cout << "\n[Server Response]\n" << message << std::endl;
-            } else {
-                std::cout << message << std::endl;
+            std::cout << message << std::endl;
+            if (message.find("Login successful!") != std::string::npos ||
+                message.find("Registration successful!") != std::string::npos) {
+                authenticated = true;
             }
         }
     }
@@ -48,13 +46,30 @@ int main() {
         return 1;
     }
 
-    std::cout << "Enter your username: ";
-    std::string username;
-    std::getline(std::cin, username);
-    send(client_socket, username.c_str(), username.length(), 0);
+    bool authenticated = false;
+    std::thread receiver(receive_messages, client_socket, std::ref(authenticated));
 
-    std::thread(receive_messages, client_socket).detach();
+    // Authentication loop
+    while (!authenticated) {
+        std::cout << "Do you want to (l)ogin or (r)egister? ";
+        std::string choice;
+        std::getline(std::cin, choice);
+        if (choice != "l" && choice != "r") {
+            std::cout << "Invalid choice. Enter 'l' to login or 'r' to register." << std::endl;
+            continue;
+        }
+        std::string username, password;
+        std::cout << "Username: ";
+        std::getline(std::cin, username);
+        std::cout << "Password: ";
+        std::getline(std::cin, password);
+        std::string command = (choice == "l" ? "/login " : "/register ") + username + " " + password;
+        send(client_socket, command.c_str(), command.length(), 0);
+        // Wait for server response
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    }
 
+    std::cout << "You are now authenticated. You can start chatting!" << std::endl;
     while (true) {
         std::string message;
         std::getline(std::cin, message);
@@ -65,6 +80,7 @@ int main() {
     }
 
     close(client_socket);
+    receiver.join();
     return 0;
 }
 

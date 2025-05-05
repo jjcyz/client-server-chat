@@ -21,9 +21,30 @@ static std::unordered_map<std::string, CommandHandler> command_map = {
 extern MessageQueue message_queue;
 
 void process_command(const Message& msg) {
+    // Find the connection for this socket
+    Connection* conn = nullptr;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx);
+        for (auto& c : connection_pool) {
+            if (c.in_use && c.socket == msg.sender_socket) {
+                conn = &c;
+                break;
+            }
+        }
+    }
+    if (!conn) return;
+
     const auto space_pos = msg.content.find(' ');
     const std::string_view command(msg.content.data(),
         space_pos == std::string::npos ? msg.content.length() : space_pos);
+
+    // Only allow /login and /register if not authenticated
+    if (!conn->authenticated && command != "/login" && command != "/register") {
+        std::string reply = "You must log in or register before using chat commands.\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        return;
+    }
+
     if (auto it = command_map.find(std::string(command)); it != command_map.end()) {
         it->second(msg);
     } else {
@@ -136,8 +157,17 @@ void handle_register(const Message& msg) {
     std::string password = msg.content.substr(second_space + 1);
     Database& db = Database::getInstance();
     if (db.createUser(username, password)) {
-        std::string reply = "Registration successful!";
+        std::string reply = "Registration successful!\n";
         send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        // Set authenticated flag
+        std::lock_guard<std::mutex> lock(pool_mtx);
+        for (auto& c : connection_pool) {
+            if (c.in_use && c.socket == msg.sender_socket) {
+                c.authenticated = true;
+                c.username = username;
+                break;
+            }
+        }
     } else {
         std::string reply = "Registration failed (user may already exist).\n";
         send(msg.sender_socket, reply.c_str(), reply.length(), 0);
@@ -157,9 +187,17 @@ void handle_login(const Message& msg) {
     std::string password = msg.content.substr(second_space + 1);
     Database& db = Database::getInstance();
     if (db.authenticateUser(username, password)) {
-        std::string reply = "Login successful!";
+        std::string reply = "Login successful!\n";
         send(msg.sender_socket, reply.c_str(), reply.length(), 0);
-        // TODO: Mark user as authenticated in connection_pool
+        // Set authenticated flag
+        std::lock_guard<std::mutex> lock(pool_mtx);
+        for (auto& c : connection_pool) {
+            if (c.in_use && c.socket == msg.sender_socket) {
+                c.authenticated = true;
+                c.username = username;
+                break;
+            }
+        }
     } else {
         std::string reply = "Login failed.\n";
         send(msg.sender_socket, reply.c_str(), reply.length(), 0);

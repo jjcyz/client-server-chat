@@ -45,17 +45,6 @@ void handle_client(int client_socket) {
         metrics.update_connections(metrics.current_connections.load() + 1);
         log_message("New connection accepted. Current connections: " + std::to_string(metrics.current_connections.load()));
 
-        char username_buffer[BUFFER_SIZE];
-        int bytes_received_username = recv(client_socket, username_buffer, BUFFER_SIZE, 0);
-        if (bytes_received_username <= 0) {
-            log_message("Failed to receive username: " + std::string(strerror(errno)));
-            release_connection(conn);
-            return;
-        }
-        username_buffer[bytes_received_username] = '\0';
-        conn->username = std::string(username_buffer);
-
-
         while (true) {
             char buffer[BUFFER_SIZE];
             int bytes_received = recv(client_socket, buffer, BUFFER_SIZE, 0);

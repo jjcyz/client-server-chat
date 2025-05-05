@@ -27,10 +27,11 @@ MAIN_OBJ = build/main.o
 # Targets
 SERVER_TARGET = server
 TEST_TARGET = build/server_test
+CLIENT_TARGET = client
 
 .PHONY: all clean test
 
-all: directories $(SERVER_TARGET)
+all: directories $(SERVER_TARGET) $(CLIENT_TARGET)
 
 directories:
 	@mkdir -p build
@@ -42,6 +43,9 @@ build/libserver.a: $(SERVER_OBJS)
 
 $(SERVER_TARGET): $(MAIN_OBJ) build/libserver.a
 	$(CXX) -o $@ $^ $(LDFLAGS)
+
+$(CLIENT_TARGET): src/client.cpp
+	$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
 
 build/%.o: src/%.cpp | directories
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -58,4 +62,4 @@ test: $(TEST_TARGET)
 	./$(TEST_TARGET) --gtest_color=yes
 
 clean:
-	rm -rf build $(SERVER_TARGET)
+	rm -rf build $(SERVER_TARGET) $(CLIENT_TARGET)

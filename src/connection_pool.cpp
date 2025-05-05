@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <chrono>
 #include <string>
+#include <functional>
 
 // Global variables
 std::vector<Connection> connection_pool(MAX_CONNECTIONS);
@@ -29,6 +30,7 @@ Connection* get_available_connection() {
             conn.last_activity = now;
             conn.socket = -1;  // Initialize socket to invalid
             conn.username.clear();  // Clear any old username
+            conn.authenticated = false; // Reset authentication
             return &conn;
         }
 
@@ -53,6 +55,7 @@ Connection* get_available_connection() {
         stale_connection->username.clear();
         stale_connection->in_use = true;
         stale_connection->last_activity = now;
+        stale_connection->authenticated = false;
 
         return stale_connection;
     }
@@ -72,5 +75,6 @@ void release_connection(Connection* conn) {
     conn->socket = -1;
     conn->in_use = false;
     conn->username.clear();
+    conn->authenticated = false;
     log_message("Released connection from pool");
 }

@@ -12,6 +12,7 @@ struct Connection {
     int socket;
     std::string username;
     bool in_use;
+    bool authenticated = false;
     std::chrono::steady_clock::time_point last_activity;
 };
 
