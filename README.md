@@ -1,6 +1,6 @@
 # C++ Chat Server
 
-A high-performance, multi-threaded chat server implementation in C++.
+A high-performance, multi-threaded chat server implementation in C++ with user authentication and admin controls.
 
 ## Features
 
@@ -9,6 +9,8 @@ A high-performance, multi-threaded chat server implementation in C++.
 - Message queuing
 - Chat history
 - Private messaging
+- User authentication (register/login)
+- Admin controls (user removal)
 - Server statistics
 - User listing
 - Unit testing with Google Test
@@ -17,6 +19,8 @@ A high-performance, multi-threaded chat server implementation in C++.
 
 - C++17 or higher
 - CMake 3.14 or higher
+- SQLite3
+- OpenSSL (for secure password hashing)
 - Google Test (automatically fetched during build)
 - pthread library
 
@@ -27,7 +31,7 @@ A high-performance, multi-threaded chat server implementation in C++.
 ```bash
 # Install required packages (Ubuntu/Debian)
 sudo apt-get update
-sudo apt-get install build-essential cmake
+sudo apt-get install build-essential cmake libsqlite3-dev libssl-dev
 ```
 
 ### Building the Project
@@ -60,26 +64,20 @@ make
 
 The server will start listening on port 5555 by default.
 
-## Testing
+## Authentication & Admin
 
-The project includes comprehensive unit tests using Google Test framework.
-
-### Running Tests
-
-```bash
-# Method 1: Using CMake
-cd build
-make test
-
-# Method 2: Using the test script
-./run_tests.sh
-```
+- **Registration/Login required:** Users must register or log in before chatting.
+- **Passwords:** Passwords are salted and hashed using SHA-256 via OpenSSL before being stored in the SQLite database (`chat_server.db`).
+- **Admin users:** Admins can remove users from the system using a special command. Admin status is stored in the database (`is_admin` column).
 
 ## Chat Commands
 
-- `/stats` - Show server statistics
-- `/list` - List active users
-- `/msg <username> <message>` - Send private message to <username>
+- `/register <username> <password>` — Register a new user
+- `/login <username> <password>` — Log in as an existing user
+- `/stats` — Show server statistics
+- `/list` — List active users
+- `/msg <username> <message>` — Send private message to <username>
+- `/removeuser <username>` — (Admin only) Remove a user from the system
 
 ## Technical Details
 
@@ -89,8 +87,10 @@ make test
 - Chat history size: 1000 messages
 - Default port: 5555
 - C++ Standard: C++17
-- Build System: CMake
+- Build System: CMake or Makefile
 - Testing Framework: Google Test
+- Database: SQLite3 (`chat_server.db`)
+- Passwords: Salted and hashed with OpenSSL SHA-256
 
 ### Common Development Commands
 
@@ -111,6 +111,20 @@ make test
 ./server    # Terminal 1
 ./client    # Terminal 2
 ```
+
+## Alternative Testing Commands
+
+```bash
+# Method 1: Using CMake
+cd build
+make test
+
+# Method 2: Using the test script
+./run_tests.sh
+```
+---
+
+**Note:** User and admin data is persistent in `chat_server.db`. You can inspect or modify it using standard SQLite tools.
 
 
 
