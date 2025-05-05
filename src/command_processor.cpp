@@ -15,7 +15,8 @@ static std::unordered_map<std::string, CommandHandler> command_map = {
     {"/list", handle_list},
     {"/msg", handle_msg},
     {"/register", handle_register},
-    {"/login", handle_login}
+    {"/login", handle_login},
+    {"/removeuser", handle_removeuser}
 };
 
 extern MessageQueue message_queue;
@@ -204,3 +205,37 @@ void handle_login(const Message& msg) {
     }
 }
 
+void handle_removeuser(const Message& msg) {
+    // Expected format: /removeuser username
+    size_t first_space = msg.content.find(' ');
+    if (first_space == std::string::npos) {
+        std::string reply = "Usage: /removeuser <username>\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        return;
+    }
+    std::string target_username = msg.content.substr(first_space + 1);
+    // Find the sender's username
+    std::string sender_username;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx);
+        for (const auto& c : connection_pool) {
+            if (c.in_use && c.socket == msg.sender_socket) {
+                sender_username = c.username;
+                break;
+            }
+        }
+    }
+    Database& db = Database::getInstance();
+    if (!db.isAdmin(sender_username)) {
+        std::string reply = "Permission denied. Only admins can remove users.\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+        return;
+    }
+    if (db.removeUser(target_username)) {
+        std::string reply = "User '" + target_username + "' removed successfully.\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+    } else {
+        std::string reply = "Failed to remove user '" + target_username + "'.\n";
+        send(msg.sender_socket, reply.c_str(), reply.length(), 0);
+    }
+}

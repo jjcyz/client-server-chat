@@ -42,7 +42,8 @@ bool Database::initializeDatabase() {
         "username TEXT UNIQUE NOT NULL,"
         "password_hash TEXT NOT NULL,"
         "salt TEXT NOT NULL,"
-        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
+        "is_admin INTEGER DEFAULT 0"
         ");";
 
     // Create sessions table
@@ -66,6 +67,10 @@ bool Database::initializeDatabase() {
         "FOREIGN KEY (sender_id) REFERENCES users(id),"
         "FOREIGN KEY (receiver_id) REFERENCES users(id)"
         ");";
+
+    // Add is_admin column if not present
+    const char* addAdminColumn = "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0";
+    sqlite3_exec(db, addAdminColumn, nullptr, nullptr, nullptr);
 
     return executeQuery(createUsersTable) &&
            executeQuery(createSessionsTable) &&
@@ -316,6 +321,33 @@ std::vector<std::string> Database::getMessageHistory(int user_id, int other_user
 
     sqlite3_finalize(stmt);
     return messages;
+}
+
+bool Database::removeUser(const std::string& username) {
+    std::string query = "DELETE FROM users WHERE username = ?";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+    bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+bool Database::isAdmin(const std::string& username) {
+    std::string query = "SELECT is_admin FROM users WHERE username = ?";
+    sqlite3_stmt* stmt;
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+    bool is_admin = false;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        is_admin = sqlite3_column_int(stmt, 0) == 1;
+    }
+    sqlite3_finalize(stmt);
+    return is_admin;
 }
 
 // ... Additional implementation methods will go here ...

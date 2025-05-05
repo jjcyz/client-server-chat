@@ -30,6 +30,8 @@ public:
     bool createUser(const std::string& username, const std::string& password);
     bool authenticateUser(const std::string& username, const std::string& password);
     User getUserByUsername(const std::string& username);
+    bool removeUser(const std::string& username);
+    bool isAdmin(const std::string& username);
 
     // Session management
     std::string createSession(int user_id);

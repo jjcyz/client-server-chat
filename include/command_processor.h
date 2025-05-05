@@ -12,6 +12,7 @@ void handle_msg(const Message& msg);
 void handle_unknown(const Message& msg);
 void handle_register(const Message& msg);
 void handle_login(const Message& msg);
+void handle_removeuser(const Message& msg);
 
 
 #endif // COMMAND_PROCESSOR_H
