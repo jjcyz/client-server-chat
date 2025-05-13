@@ -25,9 +25,9 @@ SERVER_OBJS = $(patsubst src/%.cpp,build/%.o,$(SERVER_SRCS))
 MAIN_OBJ = build/main.o
 
 # Targets
-SERVER_TARGET = server
+SERVER_TARGET = build/server
 TEST_TARGET = build/server_test
-CLIENT_TARGET = client
+CLIENT_TARGET = build/client
 
 .PHONY: all clean test
 
@@ -62,4 +62,4 @@ test: $(TEST_TARGET)
 	./$(TEST_TARGET) --gtest_color=yes
 
 clean:
-	rm -rf build $(SERVER_TARGET) $(CLIENT_TARGET)
+	rm -rf build $(CLIENT_TARGET)

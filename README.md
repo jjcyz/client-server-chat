@@ -108,8 +108,8 @@ make
 make test
 
 # Run server and client
-./server    # Terminal 1
-./client    # Terminal 2
+./build/server    # Terminal 1
+./build/client    # Terminal 2
 ```
 
 ## Alternative Testing Commands
