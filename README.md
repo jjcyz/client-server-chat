@@ -54,7 +54,7 @@ cd build
 cmake ..
 make
 
-# The executables will be created in the build directory
+# The executables will be created in build 
 ```
 
 ### Running the Application
