@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  @apply bg-bloomberg-bg text-bloomberg-text font-mono;
+  overflow: hidden;
+  height: 100vh;
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #30363d #0d1117;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: #0d1117;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: #30363d;
+    border-radius: 4px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    background: #484f58;
+  }
+
+  .bloomberg-glow {
+    box-shadow: 0 0 10px rgba(88, 166, 255, 0.3);
+  }
+
+  .bloomberg-border {
+    border: 1px solid #30363d;
+  }
+
+  .bloomberg-text-shadow {
+    text-shadow: 0 0 8px rgba(201, 209, 217, 0.5);
+  }
+}

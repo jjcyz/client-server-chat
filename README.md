@@ -54,7 +54,7 @@ cd build
 cmake ..
 make
 
-# The executables will be created in build 
+# The executables will be created in build
 ```
 
 ### Running the Application
@@ -68,6 +68,58 @@ make
 ```
 
 The server will start listening on port 5555 by default.
+
+## Web Frontend
+
+A Bloomberg Terminal-style web frontend is available for the chat server.
+
+### Frontend Setup
+
+```bash
+# Install dependencies for WebSocket bridge
+cd websocket-bridge
+pnpm install
+
+# Install dependencies for frontend
+cd ../frontend
+pnpm install
+```
+
+### Running the Frontend
+
+You need to run three services:
+
+1. **C++ Chat Server** (Terminal 1):
+```bash
+cd build
+./server
+```
+
+2. **WebSocket Bridge Server** (Terminal 2):
+```bash
+cd websocket-bridge
+pnpm start
+```
+
+3. **Frontend Development Server** (Terminal 3):
+```bash
+cd frontend
+pnpm dev
+```
+
+The frontend will be available at `http://localhost:3000`
+
+### Frontend Features
+
+- Bloomberg Terminal aesthetic (dark theme, terminal styling)
+- Real-time chat interface
+- User authentication (login/register)
+- Active users sidebar
+- Server statistics panel
+- Support for all chat commands
+- Private messaging
+
+See `frontend/README.md` for more details.
 
 ## Authentication & Security
 
