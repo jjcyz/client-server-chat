@@ -78,3 +78,4 @@ The application uses a custom Bloomberg Terminal color scheme:
 - Accent colors (blue #58a6ff)
 - Success/Error indicators (green/red)
 - Monospace fonts for terminal aesthetic
+****

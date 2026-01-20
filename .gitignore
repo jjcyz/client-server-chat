@@ -21,3 +21,10 @@ Testing/
 .DS_Store
 
 chat_server.db
+
+# Node.js
+node_modules/
+frontend/node_modules/
+websocket-bridge/node_modules/
+*.log
+.pnpm-store/
