@@ -1,7 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { wsClient, Message } from '@/lib/websocket'
+import { 
+  isDemoMode, 
+  getMockMessages, 
+  getMockUsers, 
+  getMockStats,
+  createDemoMessageHandler 
+} from '@/lib/demo-mode'
 import MessageList from './MessageList'
 import InputArea from '@/components/InputArea'
 import Sidebar from './Sidebar'
@@ -17,8 +24,30 @@ export default function ChatTerminal() {
   const [stats, setStats] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [privateMessageTarget, setPrivateMessageTarget] = useState<string | null>(null)
+  const [demoMode, setDemoMode] = useState(false)
+
+  // Create demo message handler
+  const demoHandler = useMemo(() => createDemoMessageHandler(), [])
 
   useEffect(() => {
+    const demo = isDemoMode()
+    setDemoMode(demo)
+
+    if (demo) {
+      // Demo mode: initialize with mock data
+      setMessages(getMockMessages())
+      setActiveUsers(getMockUsers())
+      setStats(getMockStats())
+      setIsConnected(true)
+      setIsAuthenticated(true)
+      setShowAuth(false)
+      setUsername('DemoUser')
+      return () => {
+        // No cleanup needed for demo mode
+      }
+    }
+
+    // Real mode: connect to WebSocket
     wsClient.connect()
 
     const unsubscribeMessage = wsClient.onMessage((message) => {
@@ -107,7 +136,21 @@ export default function ChatTerminal() {
   }, [])
 
   const handleSendMessage = (text: string) => {
-    if (!isConnected || !text.trim()) return
+    if (!text.trim()) return
+
+    // Demo mode: use demo handler
+    if (demoMode) {
+      if (text.startsWith('/')) {
+        // Handle commands in demo mode
+        handleCommand(text)
+        return
+      }
+      demoHandler.handleMessage(text, username, activeUsers, setMessages, privateMessageTarget)
+      return
+    }
+
+    // Real mode: send to WebSocket
+    if (!isConnected) return
 
     // If we have a private message target and the message doesn't start with /
     if (privateMessageTarget && !text.startsWith('/')) {
@@ -147,6 +190,10 @@ export default function ChatTerminal() {
   }
 
   const handleRemoveUser = (targetUser: string) => {
+    if (demoMode) {
+      demoHandler.handleRemoveUser(targetUser, setActiveUsers, setMessages)
+      return
+    }
     wsClient.send(`/removeuser ${targetUser}`)
   }
 
@@ -162,6 +209,12 @@ export default function ChatTerminal() {
   }
 
   const handleCommand = (command: string) => {
+    if (demoMode) {
+      demoHandler.handleCommand(command, activeUsers, stats, username, setMessages)
+      return
+    }
+
+    // Real mode: send to WebSocket
     if (command === '/list') {
       wsClient.send('/list')
     } else if (command === '/stats') {
@@ -182,13 +235,20 @@ export default function ChatTerminal() {
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-bloomberg-success' : 'bg-bloomberg-error'}`} />
               <span className="text-xs text-bloomberg-text-dim">
-                {isConnected ? 'CONNECTED' : 'DISCONNECTED'}
+                {demoMode ? 'DEMO MODE' : isConnected ? 'CONNECTED' : 'DISCONNECTED'}
               </span>
             </div>
           </div>
           {isAuthenticated && (
-            <div className="text-sm text-bloomberg-text-dim">
-              User: <span className="text-bloomberg-accent">{username}</span>
+            <div className="flex items-center gap-4">
+              {demoMode && (
+                <span className="text-xs px-2 py-1 bg-bloomberg-warning bg-opacity-20 text-bloomberg-warning rounded border border-bloomberg-warning">
+                  DEMO
+                </span>
+              )}
+              <div className="text-sm text-bloomberg-text-dim">
+                User: <span className="text-bloomberg-accent">{username}</span>
+              </div>
             </div>
           )}
         </div>
@@ -203,8 +263,8 @@ export default function ChatTerminal() {
           <InputArea
             onSend={handleSendMessage}
             onCommand={handleCommand}
-            disabled={!isConnected || !isAuthenticated}
-            placeholder={!isAuthenticated ? 'Please authenticate to chat...' : 'Type message or command...'}
+            disabled={demoMode ? false : (!isConnected || !isAuthenticated)}
+            placeholder={demoMode ? 'Type message or command (demo mode)...' : (!isAuthenticated ? 'Please authenticate to chat...' : 'Type message or command...')}
             privateMessageTarget={privateMessageTarget}
             onCancelPrivateMessage={handleCancelPrivateMessage}
           />
@@ -223,8 +283,8 @@ export default function ChatTerminal() {
         onRemoveUser={handleRemoveUser}
       />
 
-      {/* Auth Modal */}
-      {showAuth && (
+      {/* Auth Modal - Don't show in demo mode */}
+      {showAuth && !demoMode && (
         <AuthModal
           onAuthSuccess={handleAuthSuccess}
           isConnected={isConnected}
