@@ -7,6 +7,8 @@
 #include <cstring>
 #include <unordered_map>
 #include <functional>
+#include <string_view>
+#include <cerrno>
 
 using CommandHandler = std::function<void(const Message&)>;
 

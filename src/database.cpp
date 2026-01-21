@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
-#include <openssl/sha.h>
 #include <openssl/crypto.h>
 
 const char* Database::DATABASE_PATH = "chat_server.db";
