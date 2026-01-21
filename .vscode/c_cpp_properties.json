@@ -7,12 +7,19 @@
         "${workspaceFolder}/src",
         "${workspaceFolder}/**"
       ],
+      "browse": {
+        "path": [
+          "${workspaceFolder}/include",
+          "${workspaceFolder}/src"
+        ],
+        "limitSymbolsToIncludedHeaders": true
+      },
       "compilerPath": "/usr/bin/clang",
       "cStandard": "${default}",
-      "cppStandard": "${default}",
+      "cppStandard": "c++17",
       "intelliSenseMode": "macos-clang-x64",
       "compilerArgs": [
-        ""
+        "-I${workspaceFolder}/include"
       ]
     }
   ],

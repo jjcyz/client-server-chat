@@ -3,24 +3,7 @@
 
 #include <sqlite3.h>
 #include <string>
-#include <memory>
 #include <vector>
-#include <chrono>
-
-struct User {
-    int id;
-    std::string username;
-    std::string password_hash;
-    std::string salt;
-    std::chrono::system_clock::time_point created_at;
-};
-
-struct Session {
-    std::string session_id;
-    int user_id;
-    std::chrono::system_clock::time_point created_at;
-    std::chrono::system_clock::time_point expires_at;
-};
 
 class Database {
 public:
@@ -29,18 +12,13 @@ public:
     // User management
     bool createUser(const std::string& username, const std::string& password);
     bool authenticateUser(const std::string& username, const std::string& password);
-    User getUserByUsername(const std::string& username);
     bool removeUser(const std::string& username);
     bool isAdmin(const std::string& username);
+    int getUserID(const std::string& username);  // Returns 0 if user not found
 
-    // Session management
-    std::string createSession(int user_id);
-    bool validateSession(const std::string& session_id);
-    void invalidateSession(const std::string& session_id);
-
-    // Message history (optional)
+    // Message storage
     bool storeMessage(int sender_id, int receiver_id, const std::string& content);
-    std::vector<std::string> getMessageHistory(int user_id, int other_user_id, int limit = 100);
+    std::vector<std::string> loadRecentMessages(int limit = 1000);  // Load recent broadcast messages
 
 private:
     Database();
@@ -55,7 +33,7 @@ private:
 
     sqlite3* db;
     static const char* DATABASE_PATH;
-    static const int SESSION_DURATION_HOURS = 24;
+    static const int BROADCAST_RECEIVER_ID;  // Use 0 for broadcast messages
 };
 
 #endif // DATABASE_H

@@ -4,6 +4,7 @@
 #include "connection_pool.h"
 #include "message_queue.h"
 #include "server_metrics.h"
+#include "database.h"
 #include <iostream>
 #include <cstring>
 #include <thread>
@@ -56,6 +57,38 @@ void broadcast(int sender, const std::string& message) {
         return;
     }
 
+    // Get sender username and user ID for database storage
+    std::string sender_username;
+    int sender_id = 0;
+    {
+        std::lock_guard<std::mutex> lock(pool_mtx);
+        for (const auto& conn : connection_pool) {
+            if (conn.in_use && conn.socket == sender) {
+                sender_username = conn.username;
+                break;
+            }
+        }
+    }
+    
+    // Extract message content (remove username prefix if present)
+    std::string message_content = message;
+    size_t colon_pos = message.find(": ");
+    if (colon_pos != std::string::npos && !sender_username.empty()) {
+        // Message format is "username: content", extract just content
+        message_content = message.substr(colon_pos + 2);
+    }
+    
+    // Get user ID from database
+    if (!sender_username.empty()) {
+        Database& db = Database::getInstance();
+        sender_id = db.getUserID(sender_username);
+        
+        // Store message in database (receiver_id = 0 for broadcast)
+        if (sender_id > 0) {
+            db.storeMessage(sender_id, 0, message_content);
+        }
+    }
+
     // Pre-allocate the timed message
     std::string timed_message;
     {
@@ -70,7 +103,7 @@ void broadcast(int sender, const std::string& message) {
     metrics.record_message("broadcast");
     metrics.record_bytes(timed_message.length() * (metrics.current_connections.load() - 1));
 
-    // Store in chat history
+    // Store in chat history (in-memory for fast access)
     {
         std::lock_guard<std::mutex> lock(history_mtx);
         chat_history.push_back(timed_message);

@@ -2,15 +2,14 @@
 #include <sqlite3.h>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 #include <openssl/rand.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
-#include <ctime>
-#include <random>
-#include <algorithm>
+#include <openssl/crypto.h>
 
 const char* Database::DATABASE_PATH = "chat_server.db";
-const int Database::SESSION_DURATION_HOURS;
+const int Database::BROADCAST_RECEIVER_ID = 0;
 
 Database& Database::getInstance() {
     static Database instance;
@@ -46,15 +45,9 @@ bool Database::initializeDatabase() {
         "is_admin INTEGER DEFAULT 0"
         ");";
 
-    // Create sessions table
-    const char* createSessionsTable =
-        "CREATE TABLE IF NOT EXISTS sessions ("
-        "session_id TEXT PRIMARY KEY,"
-        "user_id INTEGER NOT NULL,"
-        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-        "expires_at TIMESTAMP NOT NULL,"
-        "FOREIGN KEY (user_id) REFERENCES users(id)"
-        ");";
+    if (!executeQuery(createUsersTable)) {
+        return false;
+    }
 
     // Create messages table
     const char* createMessagesTable =
@@ -64,17 +57,37 @@ bool Database::initializeDatabase() {
         "receiver_id INTEGER NOT NULL,"
         "content TEXT NOT NULL,"
         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,"
-        "FOREIGN KEY (sender_id) REFERENCES users(id),"
-        "FOREIGN KEY (receiver_id) REFERENCES users(id)"
+        "FOREIGN KEY (sender_id) REFERENCES users(id)"
         ");";
 
-    // Add is_admin column if not present
-    const char* addAdminColumn = "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0";
-    sqlite3_exec(db, addAdminColumn, nullptr, nullptr, nullptr);
+    if (!executeQuery(createMessagesTable)) {
+        return false;
+    }
 
-    return executeQuery(createUsersTable) &&
-           executeQuery(createSessionsTable) &&
-           executeQuery(createMessagesTable);
+    // Create index for efficient message queries
+    const char* createMessageIndex =
+        "CREATE INDEX IF NOT EXISTS idx_messages_receiver_time "
+        "ON messages(receiver_id, created_at DESC);";
+    executeQuery(createMessageIndex);  // Non-critical, don't fail if index exists
+
+    // Add is_admin column if not present (safe to run multiple times)
+    const char* checkAdminColumn =
+        "SELECT COUNT(*) FROM pragma_table_info('users') WHERE name='is_admin'";
+    sqlite3_stmt* stmt;
+    bool column_exists = false;
+    if (sqlite3_prepare_v2(db, checkAdminColumn, -1, &stmt, nullptr) == SQLITE_OK) {
+        if (sqlite3_step(stmt) == SQLITE_ROW) {
+            column_exists = sqlite3_column_int(stmt, 0) > 0;
+        }
+        sqlite3_finalize(stmt);
+    }
+
+    if (!column_exists) {
+        const char* addAdminColumn = "ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0";
+        sqlite3_exec(db, addAdminColumn, nullptr, nullptr, nullptr);
+    }
+
+    return true;
 }
 
 bool Database::executeQuery(const std::string& query) {
@@ -162,165 +175,12 @@ bool Database::authenticateUser(const std::string& username, const std::string& 
     sqlite3_finalize(stmt);
 
     std::string computed_hash = hashPassword(password, salt);
-    return stored_hash == computed_hash;
-}
 
-User Database::getUserByUsername(const std::string& username) {
-    User user;
-    std::string query = "SELECT id, username, password_hash, salt, created_at FROM users WHERE username = ?";
-    sqlite3_stmt* stmt;
-
-    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        return user; // Return empty user on error
-    }
-
-    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
-
-    if (sqlite3_step(stmt) == SQLITE_ROW) {
-        user.id = sqlite3_column_int(stmt, 0);
-        user.username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        user.password_hash = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
-        user.salt = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
-        // Convert timestamp to time_point
-        std::string timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
-        std::tm tm = {};
-        std::istringstream ss(timestamp);
-        ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-        user.created_at = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-    }
-
-    sqlite3_finalize(stmt);
-    return user;
-}
-
-std::string Database::createSession(int user_id) {
-    // Generate a random session ID
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 15);
-    const char* hex_chars = "0123456789abcdef";
-    std::string session_id;
-    for (int i = 0; i < 32; ++i) {
-        session_id += hex_chars[dis(gen)];
-    }
-
-    // Calculate expiration time
-    auto now = std::chrono::system_clock::now();
-    auto expires_at = now + std::chrono::hours(SESSION_DURATION_HOURS);
-
-    // Store session in database
-    std::string query = "INSERT INTO sessions (session_id, user_id, expires_at) VALUES (?, ?, ?)";
-    sqlite3_stmt* stmt;
-
-    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        return "";
-    }
-
-    sqlite3_bind_text(stmt, 1, session_id.c_str(), -1, SQLITE_STATIC);
-    sqlite3_bind_int(stmt, 2, user_id);
-
-    std::time_t expires_time = std::chrono::system_clock::to_time_t(expires_at);
-    std::string expires_str = std::ctime(&expires_time);
-    expires_str.pop_back(); // Remove newline
-    sqlite3_bind_text(stmt, 3, expires_str.c_str(), -1, SQLITE_STATIC);
-
-    if (sqlite3_step(stmt) != SQLITE_DONE) {
-        sqlite3_finalize(stmt);
-        return "";
-    }
-
-    sqlite3_finalize(stmt);
-    return session_id;
-}
-
-bool Database::validateSession(const std::string& session_id) {
-    std::string query = "SELECT expires_at FROM sessions WHERE session_id = ?";
-    sqlite3_stmt* stmt;
-
-    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+    // Use constant-time comparison to prevent timing attacks
+    if (stored_hash.length() != computed_hash.length()) {
         return false;
     }
-
-    sqlite3_bind_text(stmt, 1, session_id.c_str(), -1, SQLITE_STATIC);
-
-    if (sqlite3_step(stmt) != SQLITE_ROW) {
-        sqlite3_finalize(stmt);
-        return false;
-    }
-
-    // Get expiration time
-    std::string expires_str = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-    std::tm tm = {};
-    std::istringstream ss(expires_str);
-    ss >> std::get_time(&tm, "%a %b %d %H:%M:%S %Y");
-    auto expires_at = std::chrono::system_clock::from_time_t(std::mktime(&tm));
-
-    sqlite3_finalize(stmt);
-
-    // Check if session is expired
-    auto now = std::chrono::system_clock::now();
-    return now < expires_at;
-}
-
-void Database::invalidateSession(const std::string& session_id) {
-    std::string query = "DELETE FROM sessions WHERE session_id = ?";
-    sqlite3_stmt* stmt;
-
-    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        return;
-    }
-
-    sqlite3_bind_text(stmt, 1, session_id.c_str(), -1, SQLITE_STATIC);
-    sqlite3_step(stmt);
-    sqlite3_finalize(stmt);
-}
-
-bool Database::storeMessage(int sender_id, int receiver_id, const std::string& content) {
-    std::string query = "INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)";
-    sqlite3_stmt* stmt;
-
-    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        return false;
-    }
-
-    sqlite3_bind_int(stmt, 1, sender_id);
-    sqlite3_bind_int(stmt, 2, receiver_id);
-    sqlite3_bind_text(stmt, 3, content.c_str(), -1, SQLITE_STATIC);
-
-    bool success = sqlite3_step(stmt) == SQLITE_DONE;
-    sqlite3_finalize(stmt);
-    return success;
-}
-
-std::vector<std::string> Database::getMessageHistory(int user_id, int other_user_id, int limit) {
-    std::vector<std::string> messages;
-    std::string query =
-        "SELECT content, created_at "
-        "FROM messages "
-        "WHERE (sender_id = ? AND receiver_id = ?) "
-        "OR (sender_id = ? AND receiver_id = ?) "
-        "ORDER BY created_at DESC "
-        "LIMIT ?";
-    sqlite3_stmt* stmt;
-
-    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
-        return messages;
-    }
-
-    sqlite3_bind_int(stmt, 1, user_id);
-    sqlite3_bind_int(stmt, 2, other_user_id);
-    sqlite3_bind_int(stmt, 3, other_user_id);
-    sqlite3_bind_int(stmt, 4, user_id);
-    sqlite3_bind_int(stmt, 5, limit);
-
-    while (sqlite3_step(stmt) == SQLITE_ROW) {
-        std::string content = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        std::string timestamp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
-        messages.push_back("[" + timestamp + "] " + content);
-    }
-
-    sqlite3_finalize(stmt);
-    return messages;
+    return CRYPTO_memcmp(stored_hash.c_str(), computed_hash.c_str(), stored_hash.length()) == 0;
 }
 
 bool Database::removeUser(const std::string& username) {
@@ -350,4 +210,98 @@ bool Database::isAdmin(const std::string& username) {
     return is_admin;
 }
 
-// ... Additional implementation methods will go here ...
+int Database::getUserID(const std::string& username) {
+    std::string query = "SELECT id FROM users WHERE username = ?";
+    sqlite3_stmt* stmt;
+    int user_id = 0;
+
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return 0;
+    }
+
+    sqlite3_bind_text(stmt, 1, username.c_str(), -1, SQLITE_STATIC);
+
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        user_id = sqlite3_column_int(stmt, 0);
+    }
+
+    sqlite3_finalize(stmt);
+    return user_id;
+}
+
+bool Database::storeMessage(int sender_id, int receiver_id, const std::string& content) {
+    if (sender_id == 0) {
+        return false;  // Invalid sender
+    }
+
+    std::string query = "INSERT INTO messages (sender_id, receiver_id, content) VALUES (?, ?, ?)";
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return false;
+    }
+
+    sqlite3_bind_int(stmt, 1, sender_id);
+    sqlite3_bind_int(stmt, 2, receiver_id);
+    sqlite3_bind_text(stmt, 3, content.c_str(), -1, SQLITE_STATIC);
+
+    bool success = sqlite3_step(stmt) == SQLITE_DONE;
+    sqlite3_finalize(stmt);
+    return success;
+}
+
+std::vector<std::string> Database::loadRecentMessages(int limit) {
+    std::vector<std::string> messages;
+
+    // Load broadcast messages (receiver_id = 0) ordered by most recent
+    std::string query =
+        "SELECT m.content, m.created_at, u.username "
+        "FROM messages m "
+        "JOIN users u ON m.sender_id = u.id "
+        "WHERE m.receiver_id = ? "
+        "ORDER BY m.created_at DESC "
+        "LIMIT ?";
+
+    sqlite3_stmt* stmt;
+
+    if (sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr) != SQLITE_OK) {
+        return messages;
+    }
+
+    sqlite3_bind_int(stmt, 1, BROADCAST_RECEIVER_ID);
+    sqlite3_bind_int(stmt, 2, limit);
+
+    while (sqlite3_step(stmt) == SQLITE_ROW) {
+        const unsigned char* content_ptr = sqlite3_column_text(stmt, 0);
+        const unsigned char* timestamp_ptr = sqlite3_column_text(stmt, 1);
+        const unsigned char* username_ptr = sqlite3_column_text(stmt, 2);
+
+        // Skip rows with null values
+        if (!content_ptr || !timestamp_ptr || !username_ptr) {
+            continue;
+        }
+
+        std::string content = reinterpret_cast<const char*>(content_ptr);
+        std::string timestamp = reinterpret_cast<const char*>(timestamp_ptr);
+        std::string username = reinterpret_cast<const char*>(username_ptr);
+
+        // Format: [HH:MM:SS] username: message
+        std::string formatted;
+        if (timestamp.length() >= 19) {
+            // Extract time portion (assuming format like "2024-01-01 12:34:56")
+            std::string time_str = timestamp.substr(11, 8);  // Extract HH:MM:SS
+            formatted = "[" + time_str + "] " + username + ": " + content;
+        } else {
+            formatted = "[" + timestamp + "] " + username + ": " + content;
+        }
+
+        messages.push_back(formatted);
+    }
+
+    sqlite3_finalize(stmt);
+
+    // Reverse to get chronological order (oldest first)
+    std::reverse(messages.begin(), messages.end());
+
+    return messages;
+}

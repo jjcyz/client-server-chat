@@ -99,18 +99,31 @@ void handle_msg(const Message& msg) {
         std::string recipient = msg.content.substr(5, pos - 5);
         std::string private_message = msg.content.substr(pos + 1);
         bool found = false;
+        std::string sender_username;
+        int sender_id = 0;
+        int receiver_id = 0;
+
+        {
+            std::lock_guard<std::mutex> lock(pool_mtx);
+            for (const auto& conn : connection_pool) {
+                if (conn.in_use && conn.socket == msg.sender_socket) {
+                    sender_username = conn.username;
+                    break;
+                }
+            }
+        }
+
+        // Get sender and receiver IDs from database
+        Database& db = Database::getInstance();
+        if (!sender_username.empty()) {
+            sender_id = db.getUserID(sender_username);
+        }
+        receiver_id = db.getUserID(recipient);
 
         {
             std::lock_guard<std::mutex> lock(pool_mtx);
             for (const auto& conn : connection_pool) {
                 if (conn.in_use && conn.username == recipient) {
-                    std::string sender_username;
-                    for (const auto& sender_conn : connection_pool) {
-                        if (sender_conn.socket == msg.sender_socket) {
-                            sender_username = sender_conn.username;
-                            break;
-                        }
-                    }
                     std::string full_message = "(private from " + sender_username + ") " + private_message;
                     if (send(conn.socket, full_message.c_str(), full_message.length(), 0) <= 0) {
                         log_message("Failed to send private message to " + recipient + ": " + std::string(strerror(errno)));
@@ -119,6 +132,11 @@ void handle_msg(const Message& msg) {
                     break;
                 }
             }
+        }
+
+        // Store private message in database
+        if (found && sender_id > 0 && receiver_id > 0) {
+            db.storeMessage(sender_id, receiver_id, private_message);
         }
 
         if (!found) {

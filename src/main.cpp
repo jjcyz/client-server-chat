@@ -4,6 +4,8 @@
 #include "server_metrics.h"
 #include "command_processor.h"
 #include "socket_utils.h"
+#include "database.h"
+#include "server.h"
 #include <sys/socket.h>
 #include <netinet/tcp.h>
 #include <arpa/inet.h>
@@ -17,6 +19,17 @@
 
 int main() {
     try {
+        // Initialize database and load recent messages
+        Database& db = Database::getInstance();
+        std::vector<std::string> recent_messages = db.loadRecentMessages(MAX_HISTORY_SIZE);
+        
+        // Load recent messages into in-memory chat history
+        {
+            std::lock_guard<std::mutex> lock(history_mtx);
+            chat_history = recent_messages;
+        }
+        log_message("Loaded " + std::to_string(recent_messages.size()) + " recent messages from database");
+        
         initialize_connection_pool();
         log_message("Initialized connection pool with " + std::to_string(MAX_CONNECTIONS) + " slots");
 

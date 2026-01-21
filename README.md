@@ -176,9 +176,14 @@ See `frontend/README.md` for more details.
 ### Database
 - SQLite3 (`chat_server.db`)
 - Tables:
-  - Users (username, password_hash, salt, is_admin)
-  - Sessions (session_id, user_id, created_at)
-  - Messages (sender_id, receiver_id, content, timestamp)
+  - Users (id, username, password_hash, salt, created_at, is_admin)
+  - Messages (id, sender_id, receiver_id, content, created_at)
+    - `receiver_id = 0` indicates broadcast messages
+    - `receiver_id > 0` indicates private messages
+- Hybrid storage approach:
+  - In-memory cache (`chat_history`) for fast access to recent messages
+  - Database persistence for long-term message storage
+  - Recent messages loaded from database on server startup
 
 ### Testing
 - Unit tests for server and client

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { wsClient, Message } from '@/lib/websocket'
 import MessageList from './MessageList'
 import InputArea from '@/components/InputArea'
@@ -15,6 +15,8 @@ export default function ChatTerminal() {
   const [showAuth, setShowAuth] = useState(true)
   const [activeUsers, setActiveUsers] = useState<string[]>([])
   const [stats, setStats] = useState<any>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [privateMessageTarget, setPrivateMessageTarget] = useState<string | null>(null)
 
   useEffect(() => {
     wsClient.connect()
@@ -74,6 +76,18 @@ export default function ChatTerminal() {
         setStats(statsData)
       }
 
+      // Check for admin permission denial (means user is not admin)
+      if (content.includes('Permission denied') && content.includes('admin')) {
+        setIsAdmin(false)
+      }
+
+      // Check for successful user removal (means user is admin)
+      if (content.includes('removed successfully')) {
+        setIsAdmin(true)
+        // Refresh user list after removal
+        setTimeout(() => wsClient.send('/list'), 100)
+      }
+
       setMessages(prev => [...prev, message])
     })
 
@@ -95,18 +109,45 @@ export default function ChatTerminal() {
   const handleSendMessage = (text: string) => {
     if (!isConnected || !text.trim()) return
 
-    wsClient.send(text)
+    // If we have a private message target and the message doesn't start with /
+    if (privateMessageTarget && !text.startsWith('/')) {
+      const privateCommand = `/msg ${privateMessageTarget} ${text}`
+      wsClient.send(privateCommand)
 
-    // Add user's own message to UI immediately
-    if (!text.startsWith('/')) {
+      // Add user's own private message to UI immediately
       const userMessage: Message = {
         type: 'message',
-        content: text,
+        content: `(private to ${privateMessageTarget}) ${text}`,
         timestamp: new Date(),
         sender: username || 'You',
       }
       setMessages(prev => [...prev, userMessage])
+    } else {
+      wsClient.send(text)
+
+      // Add user's own message to UI immediately
+      if (!text.startsWith('/')) {
+        const userMessage: Message = {
+          type: 'message',
+          content: text,
+          timestamp: new Date(),
+          sender: username || 'You',
+        }
+        setMessages(prev => [...prev, userMessage])
+      }
     }
+  }
+
+  const handlePrivateMessage = (targetUser: string) => {
+    setPrivateMessageTarget(targetUser)
+  }
+
+  const handleCancelPrivateMessage = () => {
+    setPrivateMessageTarget(null)
+  }
+
+  const handleRemoveUser = (targetUser: string) => {
+    wsClient.send(`/removeuser ${targetUser}`)
   }
 
   const handleAuthSuccess = (user: string) => {
@@ -164,6 +205,8 @@ export default function ChatTerminal() {
             onCommand={handleCommand}
             disabled={!isConnected || !isAuthenticated}
             placeholder={!isAuthenticated ? 'Please authenticate to chat...' : 'Type message or command...'}
+            privateMessageTarget={privateMessageTarget}
+            onCancelPrivateMessage={handleCancelPrivateMessage}
           />
         </div>
       </div>
@@ -172,8 +215,12 @@ export default function ChatTerminal() {
       <Sidebar
         activeUsers={activeUsers}
         stats={stats}
+        currentUser={username}
+        isAdmin={isAdmin}
         onRefreshUsers={() => handleCommand('/list')}
         onRefreshStats={() => handleCommand('/stats')}
+        onPrivateMessage={handlePrivateMessage}
+        onRemoveUser={handleRemoveUser}
       />
 
       {/* Auth Modal */}
