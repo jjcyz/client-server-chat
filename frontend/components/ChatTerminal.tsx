@@ -1,18 +1,21 @@
 'use client'
 
 import { useState, useEffect, useMemo } from 'react'
-import { wsClient, Message } from '@/lib/websocket'
-import { 
-  isDemoMode, 
-  getMockMessages, 
-  getMockUsers, 
+import { wsClient, Message, PrivateConversation } from '@/lib/websocket'
+import {
+  isDemoMode,
+  getMockMessages,
+  getMockUsers,
   getMockStats,
-  createDemoMessageHandler 
+  createDemoMessageHandler
 } from '@/lib/demo-mode'
 import MessageList from './MessageList'
 import InputArea from '@/components/InputArea'
 import Sidebar from './Sidebar'
 import AuthModal from './AuthModal'
+import MobileMenuButton from './MobileMenuButton'
+import PrivateChatWindow from './PrivateChatWindow'
+import { useResizable } from '@/hooks/useResizable'
 
 export default function ChatTerminal() {
   const [messages, setMessages] = useState<Message[]>([])
@@ -23,8 +26,18 @@ export default function ChatTerminal() {
   const [activeUsers, setActiveUsers] = useState<string[]>([])
   const [stats, setStats] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [privateMessageTarget, setPrivateMessageTarget] = useState<string | null>(null)
+  const [privateConversations, setPrivateConversations] = useState<Map<string, PrivateConversation>>(new Map())
+  const [highestZIndex, setHighestZIndex] = useState(100)
   const [demoMode, setDemoMode] = useState(false)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
+
+  // Resizable sidebar hook
+  const { width: sidebarWidth, isResizing, onResizeStart } = useResizable({
+    minWidth: 200,
+    maxWidth: 500,
+    defaultWidth: 320,
+    storageKey: 'chat-sidebar-width'
+  })
 
   // Create demo message handler
   const demoHandler = useMemo(() => createDemoMessageHandler(), [])
@@ -145,48 +158,135 @@ export default function ChatTerminal() {
         handleCommand(text)
         return
       }
-      demoHandler.handleMessage(text, username, activeUsers, setMessages, privateMessageTarget)
+      demoHandler.handleMessage(text, username, activeUsers, setMessages, null)
       return
     }
 
     // Real mode: send to WebSocket
     if (!isConnected) return
 
-    // If we have a private message target and the message doesn't start with /
-    if (privateMessageTarget && !text.startsWith('/')) {
-      const privateCommand = `/msg ${privateMessageTarget} ${text}`
-      wsClient.send(privateCommand)
+    wsClient.send(text)
 
-      // Add user's own private message to UI immediately
+    // Add user's own message to UI immediately
+    if (!text.startsWith('/')) {
       const userMessage: Message = {
         type: 'message',
-        content: `(private to ${privateMessageTarget}) ${text}`,
+        content: text,
         timestamp: new Date(),
         sender: username || 'You',
       }
       setMessages(prev => [...prev, userMessage])
-    } else {
-      wsClient.send(text)
-
-      // Add user's own message to UI immediately
-      if (!text.startsWith('/')) {
-        const userMessage: Message = {
-          type: 'message',
-          content: text,
-          timestamp: new Date(),
-          sender: username || 'You',
-        }
-        setMessages(prev => [...prev, userMessage])
-      }
     }
   }
 
-  const handlePrivateMessage = (targetUser: string) => {
-    setPrivateMessageTarget(targetUser)
+  // Open or focus a private chat window
+  const handleOpenPrivateChat = (targetUser: string) => {
+    setIsMobileSidebarOpen(false)
+
+    setPrivateConversations(prev => {
+      const newMap = new Map(prev)
+      if (newMap.has(targetUser)) {
+        // Window exists, bring to front
+        const conv = newMap.get(targetUser)!
+        newMap.set(targetUser, { ...conv, zIndex: highestZIndex + 1 })
+        setHighestZIndex(z => z + 1)
+      } else {
+        // Create new window with offset position based on number of open windows
+        const offset = newMap.size * 30
+        newMap.set(targetUser, {
+          id: targetUser,
+          messages: [],
+          position: { x: 100 + offset, y: 100 + offset },
+          zIndex: highestZIndex + 1
+        })
+        setHighestZIndex(z => z + 1)
+      }
+      return newMap
+    })
   }
 
-  const handleCancelPrivateMessage = () => {
-    setPrivateMessageTarget(null)
+  // Close a private chat window
+  const handleClosePrivateChat = (targetUser: string) => {
+    setPrivateConversations(prev => {
+      const newMap = new Map(prev)
+      newMap.delete(targetUser)
+      return newMap
+    })
+  }
+
+  // Bring a window to front
+  const handleFocusPrivateChat = (targetUser: string) => {
+    setPrivateConversations(prev => {
+      const newMap = new Map(prev)
+      const conv = newMap.get(targetUser)
+      if (conv) {
+        newMap.set(targetUser, { ...conv, zIndex: highestZIndex + 1 })
+        setHighestZIndex(z => z + 1)
+      }
+      return newMap
+    })
+  }
+
+  // Update window position
+  const handleUpdatePrivateChatPosition = (targetUser: string, position: { x: number; y: number }) => {
+    setPrivateConversations(prev => {
+      const newMap = new Map(prev)
+      const conv = newMap.get(targetUser)
+      if (conv) {
+        newMap.set(targetUser, { ...conv, position })
+      }
+      return newMap
+    })
+  }
+
+  // Send a private message
+  const handleSendPrivateMessage = (targetUser: string, message: string) => {
+    if (!message.trim()) return
+
+    const userMessage: Message = {
+      type: 'message',
+      content: message,
+      timestamp: new Date(),
+      sender: username || 'You',
+      isPrivate: true,
+      privateWith: targetUser
+    }
+
+    // Add message to conversation
+    setPrivateConversations(prev => {
+      const newMap = new Map(prev)
+      const conv = newMap.get(targetUser)
+      if (conv) {
+        newMap.set(targetUser, {
+          ...conv,
+          messages: [...conv.messages, userMessage]
+        })
+      }
+      return newMap
+    })
+
+    if (demoMode) {
+      // Simulate a response in demo mode
+      demoHandler.handlePrivateMessage(targetUser, message, username, (responseMsg: Message) => {
+        setPrivateConversations(prev => {
+          const newMap = new Map(prev)
+          const conv = newMap.get(targetUser)
+          if (conv) {
+            newMap.set(targetUser, {
+              ...conv,
+              messages: [...conv.messages, responseMsg]
+            })
+          }
+          return newMap
+        })
+      })
+      return
+    }
+
+    if (!isConnected) return
+
+    const privateCommand = `/msg ${targetUser} ${message}`
+    wsClient.send(privateCommand)
   }
 
   const handleRemoveUser = (targetUser: string) => {
@@ -222,10 +322,18 @@ export default function ChatTerminal() {
     }
   }
 
+  const toggleMobileSidebar = () => {
+    setIsMobileSidebarOpen(prev => !prev)
+  }
+
+  const closeMobileSidebar = () => {
+    setIsMobileSidebarOpen(false)
+  }
+
   return (
     <div className="flex h-screen w-screen bg-bloomberg-bg">
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Header */}
         <div className="bg-bloomberg-bg-secondary bloomberg-border-b px-4 py-2 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -239,18 +347,21 @@ export default function ChatTerminal() {
               </span>
             </div>
           </div>
-          {isAuthenticated && (
-            <div className="flex items-center gap-4">
-              {demoMode && (
-                <span className="text-xs px-2 py-1 bg-bloomberg-warning bg-opacity-20 text-bloomberg-warning rounded border border-bloomberg-warning">
-                  DEMO
-                </span>
-              )}
-              <div className="text-sm text-bloomberg-text-dim">
-                User: <span className="text-bloomberg-accent">{username}</span>
-              </div>
-            </div>
-          )}
+          <div className="flex items-center gap-4">
+            {isAuthenticated && (
+              <>
+                {demoMode && (
+                  <span className="text-xs px-2 py-1 bg-bloomberg-warning bg-opacity-20 text-bloomberg-warning rounded border border-bloomberg-warning">
+                    DEMO
+                  </span>
+                )}
+                <div className="text-sm text-bloomberg-text-dim hidden sm:block">
+                  User: <span className="text-bloomberg-accent">{username}</span>
+                </div>
+              </>
+            )}
+            <MobileMenuButton onClick={toggleMobileSidebar} isOpen={isMobileSidebarOpen} />
+          </div>
         </div>
 
         {/* Messages */}
@@ -265,23 +376,69 @@ export default function ChatTerminal() {
             onCommand={handleCommand}
             disabled={demoMode ? false : (!isConnected || !isAuthenticated)}
             placeholder={demoMode ? 'Type message or command (demo mode)...' : (!isAuthenticated ? 'Please authenticate to chat...' : 'Type message or command...')}
-            privateMessageTarget={privateMessageTarget}
-            onCancelPrivateMessage={handleCancelPrivateMessage}
           />
         </div>
       </div>
 
-      {/* Sidebar */}
-      <Sidebar
-        activeUsers={activeUsers}
-        stats={stats}
-        currentUser={username}
-        isAdmin={isAdmin}
-        onRefreshUsers={() => handleCommand('/list')}
-        onRefreshStats={() => handleCommand('/stats')}
-        onPrivateMessage={handlePrivateMessage}
-        onRemoveUser={handleRemoveUser}
-      />
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block h-full">
+        <Sidebar
+          activeUsers={activeUsers}
+          stats={stats}
+          currentUser={username}
+          isAdmin={isAdmin}
+          onRefreshUsers={() => handleCommand('/list')}
+          onRefreshStats={() => handleCommand('/stats')}
+          onPrivateMessage={handleOpenPrivateChat}
+          onRemoveUser={handleRemoveUser}
+          width={sidebarWidth}
+          onResizeStart={onResizeStart}
+          isResizing={isResizing}
+        />
+      </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={closeMobileSidebar}
+        />
+      )}
+
+      {/* Mobile Sidebar Drawer */}
+      <div
+        className={`fixed top-0 right-0 h-full w-80 max-w-[85vw] z-50 transform transition-transform duration-300 ease-in-out md:hidden ${
+          isMobileSidebarOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
+        <Sidebar
+          activeUsers={activeUsers}
+          stats={stats}
+          currentUser={username}
+          isAdmin={isAdmin}
+          onRefreshUsers={() => handleCommand('/list')}
+          onRefreshStats={() => handleCommand('/stats')}
+          onPrivateMessage={handleOpenPrivateChat}
+          onRemoveUser={handleRemoveUser}
+          isMobile={true}
+          onClose={closeMobileSidebar}
+        />
+      </div>
+
+      {/* Private Chat Windows */}
+      {Array.from(privateConversations.values()).map((conversation) => (
+        <PrivateChatWindow
+          key={conversation.id}
+          targetUser={conversation.id}
+          messages={conversation.messages}
+          position={conversation.position}
+          zIndex={conversation.zIndex}
+          onSend={(msg) => handleSendPrivateMessage(conversation.id, msg)}
+          onClose={() => handleClosePrivateChat(conversation.id)}
+          onFocus={() => handleFocusPrivateChat(conversation.id)}
+          onPositionChange={(pos) => handleUpdatePrivateChatPosition(conversation.id, pos)}
+        />
+      ))}
 
       {/* Auth Modal - Don't show in demo mode */}
       {showAuth && !demoMode && (

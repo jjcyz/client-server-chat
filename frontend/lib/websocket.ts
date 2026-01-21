@@ -3,6 +3,15 @@ export interface Message {
   content: string
   timestamp: Date
   sender?: string
+  isPrivate?: boolean
+  privateWith?: string  // The other user in PM
+}
+
+export interface PrivateConversation {
+  id: string              // Target username
+  messages: Message[]
+  position: { x: number; y: number }
+  zIndex: number
 }
 
 class WebSocketClient {

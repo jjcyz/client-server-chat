@@ -49,4 +49,36 @@ body {
   .bloomberg-text-shadow {
     text-shadow: 0 0 8px rgba(201, 209, 217, 0.5);
   }
+
+  .animate-slide-up {
+    animation: slideUp 0.2s ease-out;
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .bloomberg-border-l {
+    border-left: 1px solid #30363d;
+  }
+
+  .bloomberg-border-b {
+    border-bottom: 1px solid #30363d;
+  }
+
+  .bloomberg-border-t {
+    border-top: 1px solid #30363d;
+  }
 }

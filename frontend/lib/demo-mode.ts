@@ -3,9 +3,16 @@ import { Message } from './websocket'
 
 /**
  * Demo mode detection
- * Activates when deployed to production without NEXT_PUBLIC_WS_URL configured
+ * Can be explicitly enabled via NEXT_PUBLIC_DEMO_MODE environment variable
+ * Otherwise activates when deployed to production without NEXT_PUBLIC_WS_URL configured
  */
 export const isDemoMode = (): boolean => {
+  // Check for explicit demo mode setting
+  const explicitDemoMode = process.env.NEXT_PUBLIC_DEMO_MODE
+  if (explicitDemoMode === 'true') return true
+  if (explicitDemoMode === 'false') return false
+
+  // Fallback to automatic detection
   if (typeof window === 'undefined') return false
   const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
   const hasWsUrl = !!process.env.NEXT_PUBLIC_WS_URL
@@ -87,6 +94,7 @@ export interface DemoMessageHandler {
   handleMessage: (text: string, username: string, activeUsers: string[], setMessages: React.Dispatch<React.SetStateAction<Message[]>>, privateMessageTarget?: string | null) => void
   handleCommand: (command: string, activeUsers: string[], stats: any, username: string, setMessages: React.Dispatch<React.SetStateAction<Message[]>>) => void
   handleRemoveUser: (targetUser: string, setActiveUsers: React.Dispatch<React.SetStateAction<string[]>>, setMessages: React.Dispatch<React.SetStateAction<Message[]>>) => void
+  handlePrivateMessage: (targetUser: string, message: string, username: string, onResponse: (msg: Message) => void) => void
 }
 
 export const createDemoMessageHandler = (): DemoMessageHandler => {
@@ -232,9 +240,39 @@ export const createDemoMessageHandler = (): DemoMessageHandler => {
     setMessages(prev => [...prev, response])
   }
 
+  const handlePrivateMessage = (
+    targetUser: string,
+    _message: string,
+    username: string,
+    onResponse: (msg: Message) => void
+  ) => {
+    // Simulate a response after a delay
+    const responses = [
+      'Got it!',
+      'Thanks for the message!',
+      'I understand.',
+      'Okay, sounds good!',
+      'Sure thing!'
+    ]
+    const randomResponse = responses[Math.floor(Math.random() * responses.length)]
+
+    setTimeout(() => {
+      const response: Message = {
+        type: 'message',
+        content: randomResponse,
+        timestamp: new Date(),
+        sender: targetUser,
+        isPrivate: true,
+        privateWith: username
+      }
+      onResponse(response)
+    }, 800 + Math.random() * 700)
+  }
+
   return {
     handleMessage,
     handleCommand,
-    handleRemoveUser
+    handleRemoveUser,
+    handlePrivateMessage
   }
 }

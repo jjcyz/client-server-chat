@@ -11,6 +11,11 @@ interface SidebarProps {
   onRefreshStats: () => void
   onPrivateMessage: (targetUser: string) => void
   onRemoveUser: (targetUser: string) => void
+  width?: number
+  onResizeStart?: (e: React.MouseEvent) => void
+  isResizing?: boolean
+  onClose?: () => void
+  isMobile?: boolean
 }
 
 export default function Sidebar({
@@ -21,7 +26,12 @@ export default function Sidebar({
   onRefreshUsers,
   onRefreshStats,
   onPrivateMessage,
-  onRemoveUser
+  onRemoveUser,
+  width,
+  onResizeStart,
+  isResizing,
+  onClose,
+  isMobile = false
 }: SidebarProps) {
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null)
 
@@ -37,7 +47,38 @@ export default function Sidebar({
   }
 
   return (
-    <div className="w-80 bg-bloomberg-bg-secondary bloomberg-border-l flex flex-col">
+    <div
+      className={`bg-bloomberg-bg-secondary bloomberg-border-l flex flex-col relative ${
+        isMobile ? 'w-full h-full' : 'h-full'
+      }`}
+      style={!isMobile && width ? { width: `${width}px` } : undefined}
+    >
+      {/* Resize handle - hidden on mobile */}
+      {!isMobile && onResizeStart && (
+        <div
+          onMouseDown={onResizeStart}
+          className={`absolute left-0 top-0 bottom-0 w-1 cursor-ew-resize hover:bg-bloomberg-accent transition-colors ${
+            isResizing ? 'bg-bloomberg-accent' : 'bg-transparent'
+          }`}
+        />
+      )}
+
+      {/* Mobile close button */}
+      {isMobile && onClose && (
+        <div className="flex items-center justify-between px-4 py-3 bloomberg-border-b">
+          <h2 className="text-bloomberg-accent text-sm font-bold uppercase">Menu</h2>
+          <button
+            onClick={onClose}
+            className="touch-target flex items-center justify-center text-bloomberg-text-dim hover:text-bloomberg-error transition-colors"
+            aria-label="Close menu"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Stats Panel */}
       <div className="bloomberg-border-b p-4">
         <div className="flex items-center justify-between mb-3">
