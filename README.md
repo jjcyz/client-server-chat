@@ -1,5 +1,16 @@
 # C++ Chat Server
 
+![CI](https://img.shields.io/github/actions/workflow/status/jjcyz/client-server-chat/.github/workflows/c-cpp.yml?branch=master&label=CI)
+![C++](https://img.shields.io/badge/C++-17-blue.svg?style=flat&logo=c%2B%2B)
+![Next.js](https://img.shields.io/badge/Next.js-14-black.svg?style=flat&logo=next.js)
+![React](https://img.shields.io/badge/React-18-blue.svg?style=flat&logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg?style=flat&logo=typescript)
+![CMake](https://img.shields.io/badge/CMake-3.14+-064F8C.svg?style=flat&logo=cmake)
+![SQLite](https://img.shields.io/badge/SQLite-3-lightgrey.svg?style=flat&logo=sqlite)
+![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg?style=flat&logo=node.js)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.4-38B2AC.svg?style=flat&logo=tailwind-css)
+![OpenSSL](https://img.shields.io/badge/OpenSSL-1.1+-721412.svg?style=flat&logo=openssl)
+
 A high-performance, multi-threaded chat server implementation in C++ with user authentication, admin controls, and testing.
 
 ## Features
