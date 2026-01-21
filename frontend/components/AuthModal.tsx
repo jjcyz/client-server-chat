@@ -76,7 +76,11 @@ export default function AuthModal({ onAuthSuccess, isConnected }: AuthModalProps
 
         {!isConnected && (
           <div className="mb-4 p-3 bg-bloomberg-error bg-opacity-20 border border-bloomberg-error rounded text-sm text-bloomberg-error">
-            Not connected to server. Please wait...
+            {typeof window !== 'undefined' &&
+             window.location.hostname !== 'localhost' &&
+             window.location.hostname !== '127.0.0.1'
+              ? 'Backend server not configured. Please contact the administrator.'
+              : 'Not connected to server. Please wait...'}
           </div>
         )}
 
